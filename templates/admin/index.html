@@ -1,0 +1,156 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+<style>
+  .dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .stat-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .stat-card h3 {
+    margin: 0 0 1rem 0;
+    color: #444;
+    font-size: 1.1rem;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #2c5282;
+    margin: 0.5rem 0;
+  }
+  .stat-label {
+    color: #666;
+    font-size: 0.9rem;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .mini-stat {
+    background: #f7fafc;
+    padding: 0.5rem;
+    border-radius: 4px;
+  }
+  .mini-stat .value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #2c5282;
+  }
+  .mini-stat .label {
+    font-size: 0.8rem;
+    color: #666;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  {% if stats %}
+  <div class="dashboard-stats">
+    <!-- Members Card -->
+    <div class="stat-card">
+      <h3>Members</h3>
+      <div class="stat-value">{{ stats.members.total }}</div>
+      <div class="stat-label">Total Members</div>
+      <div class="stat-grid">
+        <div class="mini-stat">
+          <div class="value">{{ stats.members.active }}</div>
+          <div class="label">Active</div>
+        </div>
+        <div class="mini-stat">
+          <div class="value">{{ stats.members.new_today }}</div>
+          <div class="label">New Today</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subscriptions Card -->
+    <div class="stat-card">
+      <h3>Subscriptions</h3>
+      <div class="stat-value">{{ stats.subscriptions.active }}</div>
+      <div class="stat-label">Active Subscriptions</div>
+      <div class="stat-grid">
+        <div class="mini-stat">
+          <div class="value">{{ stats.subscriptions.expiring_soon }}</div>
+          <div class="label">Expiring Soon</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Finance Card -->
+    <div class="stat-card">
+      <h3>Finance</h3>
+      <div class="stat-value">${{ stats.finance.today_revenue }}</div>
+      <div class="stat-label">Today's Revenue</div>
+      <div class="stat-grid">
+        <div class="mini-stat">
+          <div class="value">${{ stats.finance.pending_payments }}</div>
+          <div class="label">Pending Payments</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Check-ins Card -->
+    <div class="stat-card">
+      <h3>Check-ins</h3>
+      <div class="stat-value">{{ stats.checkins.today }}</div>
+      <div class="stat-label">Today's Check-ins</div>
+      <div class="stat-grid">
+        <div class="mini-stat">
+          <div class="value">{{ stats.checkins.current }}</div>
+          <div class="label">Currently in Gym</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if app_list %}
+    {% for app in app_list %}
+      <div class="app-{{ app.app_label }} module{% if app.app_url in request.path|urlencode %} current-app{% endif %}">
+        <table>
+          <caption>
+            <a href="{{ app.app_url }}" class="section" title="{% blocktranslate with name=app.name %}Models in the {{ name }} application{% endblocktranslate %}">{{ app.name }}</a>
+          </caption>
+          {% for model in app.models %}
+            <tr class="model-{{ model.object_name|lower }}{% if model.admin_url in request.path|urlencode %} current-model{% endif %}">
+              {% if model.admin_url %}
+                <th scope="row"><a href="{{ model.admin_url }}">{{ model.name }}</a></th>
+              {% else %}
+                <th scope="row">{{ model.name }}</th>
+              {% endif %}
+
+              {% if model.add_url %}
+                <td><a href="{{ model.add_url }}" class="addlink">{% translate 'Add' %}</a></td>
+              {% else %}
+                <td></td>
+              {% endif %}
+
+              {% if model.admin_url and show_changelinks %}
+                {% if model.view_only %}
+                  <td><a href="{{ model.admin_url }}" class="viewlink">{% translate 'View' %}</a></td>
+                {% else %}
+                  <td><a href="{{ model.admin_url }}" class="changelink">{% translate 'Change' %}</a></td>
+                {% endif %}
+              {% elif show_changelinks %}
+                <td></td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>{% translate "You don't have permission to view or edit anything." %}</p>
+  {% endif %}
+</div>
+{% endblock %}
