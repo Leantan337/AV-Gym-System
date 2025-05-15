@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum
+from django.db.models import Sum, Count
 from django.utils import timezone
 from django.http import FileResponse
 from django.conf import settings
@@ -9,7 +9,11 @@ import os
 import tempfile
 import zipfile
 from datetime import datetime, timedelta
-from weasyprint import HTML
+# PDF generation with ReportLab instead of WeasyPrint
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 from .models import Invoice, InvoiceTemplate, InvoiceItem
 from .serializers import (
     InvoiceTemplateSerializer,
@@ -102,43 +106,85 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
         
         # Generate PDF if it doesn't exist
-        if not invoice.pdf_path or not os.path.exists(invoice.pdf_path):
-            # Render invoice template with context
-            template = invoice.template
-            context = {
-                'invoice': {
-                    'number': invoice.number,
-                    'date': invoice.created_at.strftime('%Y-%m-%d'),
-                    'dueDate': invoice.due_date.strftime('%Y-%m-%d'),
-                },
-                'member': {
-                    'fullName': invoice.member.full_name,
-                    'email': invoice.member.email,
-                    'phone': invoice.member.phone,
-                    'address': invoice.member.address,
-                },
-                'items': [{
-                    'description': item.description,
-                    'quantity': item.quantity,
-                    'unitPrice': float(item.unit_price),
-                    'total': float(item.total),
-                } for item in invoice.items.all()],
-                'subtotal': float(invoice.subtotal),
-                'tax': float(invoice.tax),
-                'total': float(invoice.total),
-            }
-
-            # Replace variables in template
-            html_content = template.content
-            for key, value in context['invoice'].items():
-                html_content = html_content.replace('{{invoice.' + key + '}}', str(value))
-            for key, value in context['member'].items():
-                html_content = html_content.replace('{{member.' + key + '}}', str(value))
-
+        if not hasattr(invoice, 'pdf_path') or not os.path.exists(invoice.pdf_path):
             # Create temporary file
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-                # Generate PDF using WeasyPrint
-                HTML(string=html_content).write_pdf(tmp.name)
+                # Get data for invoice
+                items = invoice.items.all()
+                member = invoice.member
+                
+                # Set up the PDF document
+                doc = SimpleDocTemplate(tmp.name, pagesize=letter)
+                styles = getSampleStyleSheet()
+                elements = []
+                
+                # Add title
+                title_style = ParagraphStyle(
+                    'Title', 
+                    parent=styles['Heading1'],
+                    alignment=1,  # Center
+                    spaceAfter=12
+                )
+                elements.append(Paragraph(f"INVOICE #{invoice.number}", title_style))
+                elements.append(Spacer(1, 20))
+                
+                # Add invoice information
+                elements.append(Paragraph(f"Date: {invoice.created_at.strftime('%Y-%m-%d')}", styles['Normal']))
+                elements.append(Paragraph(f"Due Date: {invoice.due_date.strftime('%Y-%m-%d')}", styles['Normal']))
+                elements.append(Paragraph(f"Status: {invoice.get_status_display()}", styles['Normal']))
+                elements.append(Spacer(1, 10))
+                
+                # Add member information
+                elements.append(Paragraph("Bill To:", styles['Heading3']))
+                elements.append(Paragraph(f"Name: {member.full_name}", styles['Normal']))
+                elements.append(Paragraph(f"Email: {member.email}", styles['Normal']))
+                if hasattr(member, 'phone') and member.phone:
+                    elements.append(Paragraph(f"Phone: {member.phone}", styles['Normal']))
+                if hasattr(member, 'address') and member.address:
+                    elements.append(Paragraph(f"Address: {member.address}", styles['Normal']))
+                elements.append(Spacer(1, 20))
+                
+                # Add items table
+                table_data = [
+                    ['Description', 'Quantity', 'Unit Price', 'Total']
+                ]
+                for item in items:
+                    table_data.append([
+                        item.description,
+                        str(item.quantity),
+                        f"${float(item.unit_price):.2f}",
+                        f"${float(item.total):.2f}"
+                    ])
+                
+                # Add totals to table
+                table_data.append(['', '', 'Subtotal:', f"${float(invoice.subtotal):.2f}"])
+                table_data.append(['', '', 'Tax:', f"${float(invoice.tax):.2f}"])
+                table_data.append(['', '', 'Total:', f"${float(invoice.total):.2f}"])
+                
+                # Create table and set styles
+                items_table = Table(table_data, colWidths=[250, 75, 100, 100])
+                items_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -4), colors.white),
+                    ('GRID', (0, 0), (-1, -4), 1, colors.black),
+                    ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+                    ('FONTNAME', (0, -3), (-1, -1), 'Helvetica-Bold'),
+                ]))
+                
+                elements.append(items_table)
+                elements.append(Spacer(1, 30))
+                
+                # Add note
+                if hasattr(invoice, 'notes') and invoice.notes:
+                    elements.append(Paragraph(f"Notes: {invoice.notes}", styles['Normal']))
+                
+                # Build PDF
+                doc.build(elements)
                 invoice.pdf_path = tmp.name
                 invoice.save()
 

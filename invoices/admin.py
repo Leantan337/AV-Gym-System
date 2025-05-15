@@ -6,16 +6,16 @@ from .models import Invoice
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('invoice_number', 'member_link', 'amount', 'status', 'due_date', 'days_until_due', 'actions')
+    list_display = ('invoice_number', 'member_link', 'total', 'status', 'due_date', 'days_until_due')
     list_filter = ('status', 'created_at', 'due_date')
     search_fields = ('member__full_name', 'id')
-    raw_id_fields = ('member', 'plan')
+    raw_id_fields = ('member', 'template')
     readonly_fields = ('created_at', 'updated_at')
     date_hierarchy = 'due_date'
     
     fieldsets = (
         ('Invoice Information', {
-            'fields': ('member', 'plan', 'amount')
+            'fields': ('member', 'template', 'subtotal', 'tax', 'total')
         }),
         ('Status', {
             'fields': ('status', 'due_date')
