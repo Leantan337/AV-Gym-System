@@ -151,7 +151,39 @@
 
 Last Updated: 2025-05-14
 
-## Development Progress as of 2025-05-15 20:03
+## Development Progress as of 2025-05-15 20:30
+
+### Check-In Module Implementation Complete
+1. Core Features:
+   - BarcodeScanner with external scanner support
+   - ManualEntryForm with member search
+   - Real-time status updates via WebSocket
+   - Check-in history with filtering and pagination
+   - Check-out functionality
+
+2. Technical Achievements:
+   - WebSocket integration with auto-reconnection
+   - Type-safe API integration
+   - Comprehensive error handling
+   - Unit and integration tests
+   - Full documentation
+
+### Next Priority: Invoice System
+Planning to implement:
+1. Invoice Generation UI
+   - Template selection
+   - Member data integration
+   - Payment status tracking
+
+2. Bulk Operations
+   - Multi-invoice generation
+   - Batch status updates
+   - Export functionality
+
+3. Templates
+   - Custom template editor
+   - Multiple format support
+   - Preview functionality
 
 ### Check-In Module Implementation (MVP)
 1. Completed Components:
@@ -229,3 +261,17 @@ Next Steps:
 2. Implement barcode scanner
 3. Add WebSocket for real-time updates
 4. Add loading states and error handling
+
+[2025-05-15 21:12] Invoice System Implementation
+- Invoice models and serializers ✓
+- Invoice templates with HTML support ✓
+- Dynamic invoice number generation ✓
+- PDF generation with WeasyPrint ✓
+- Bulk invoice operations ✓
+- Statistics and filtering ✓
+
+Next Steps:
+1. Add frontend components
+2. Test PDF generation
+3. Implement email notifications
+4. Add invoice payment tracking

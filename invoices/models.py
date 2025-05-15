@@ -1,22 +1,76 @@
 from django.db import models
 import uuid
+from django.utils import timezone
 from members.models import Member
 from plans.models import MembershipPlan
 
-class Invoice(models.Model):
+class InvoiceTemplate(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='invoices')
-    plan = models.ForeignKey(MembershipPlan, on_delete=models.PROTECT)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=20, choices=[
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    content = models.TextField()  # HTML template with variables
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+class Invoice(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending', 'Pending'),
         ('paid', 'Paid'),
-        ('unpaid', 'Unpaid')
-    ], default='unpaid')
-    invoice_date = models.DateField()
+        ('cancelled', 'Cancelled'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.CharField(max_length=50, unique=True)  # e.g., INV-2025-001
+    member = models.ForeignKey(Member, on_delete=models.PROTECT, related_name='invoices')
+    template = models.ForeignKey(InvoiceTemplate, on_delete=models.PROTECT)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    notes = models.TextField(blank=True)
     due_date = models.DateField()
     pdf_path = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        if not self.number:
+            # Generate invoice number: INV-YYYY-XXXX
+            year = timezone.now().year
+            last_invoice = Invoice.objects.filter(number__startswith=f'INV-{year}-').order_by('-number').first()
+            if last_invoice:
+                last_number = int(last_invoice.number.split('-')[-1])
+                new_number = last_number + 1
+            else:
+                new_number = 1
+            self.number = f'INV-{year}-{new_number:04d}'
+
+        # Calculate totals
+        self.subtotal = sum(item.total for item in self.items.all())
+        self.total = self.subtotal + self.tax
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f'{self.member.full_name} - {self.invoice_date}'
+        return f'{self.number} - {self.member.full_name}'
+
+class InvoiceItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
+    description = models.CharField(max_length=255)
+    quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def save(self, *args, **kwargs):
+        self.total = self.quantity * self.unit_price
+        super().save(*args, **kwargs)
+
+        # Update invoice totals
+        self.invoice.save()
+
+    def __str__(self):
+        return f'{self.invoice.number} - {self.description}'

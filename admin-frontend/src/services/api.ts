@@ -39,10 +39,16 @@ export interface DashboardStats {
 export interface Member {
   id: string;
   full_name: string;
-  status: 'active' | 'inactive';
+  status: string;
   phone: string;
   address: string;
-  membership_number?: string;
+  membership_number: string;
+}
+
+interface MemberSearchResult {
+  id: string;
+  fullName: string;
+  membershipNumber: string;
 }
 
 export interface Invoice {
@@ -69,10 +75,40 @@ export interface CheckInStats {
   averageStayMinutes: number;
 }
 
+interface CheckInFilters {
+  search?: string;
+  status?: 'all' | 'in' | 'out';
+  dateRange?: 'today' | 'yesterday' | 'week' | 'all';
+  page?: number;
+  perPage?: number;
+}
+
+interface CheckInResponse {
+  checkIns: CheckIn[];
+  totalCount: number;
+}
+
 export const adminApi = {
+  // Search
+  searchMembers: async (query: string): Promise<MemberSearchResult[]> => {
+    const response = await api.get<Member[]>(`/members/search/?q=${encodeURIComponent(query)}`);
+    return response.data.map(member => ({
+      id: member.id,
+      fullName: member.full_name,
+      membershipNumber: member.membership_number,
+    }));
+  },
+
   // Check-ins
-  getCheckIns: async ({ limit = 10 } = {}) => {
-    const response = await api.get<CheckIn[]>(`/checkins/?limit=${limit}`);
+  getCheckIns: async (filters: CheckInFilters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('q', filters.search);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.dateRange) params.append('dateRange', filters.dateRange);
+    if (filters.page !== undefined) params.append('page', filters.page.toString());
+    if (filters.perPage) params.append('perPage', filters.perPage.toString());
+
+    const response = await api.get<CheckInResponse>(`/check-ins/?${params.toString()}`);
     return response.data;
   },
 
@@ -86,12 +122,23 @@ export const adminApi = {
     return response.data;
   },
 
-  checkOutMember: async ({ checkInId }: { checkInId: string }) => {
-    const response = await api.post(`/checkins/${checkInId}/checkout/`);
+  getCheckInHistory: async (filters: CheckInFilters = {}): Promise<CheckInResponse> => {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('q', filters.search);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.dateRange) params.append('dateRange', filters.dateRange);
+    if (filters.page !== undefined) params.append('page', filters.page.toString());
+    if (filters.perPage) params.append('perPage', filters.perPage.toString());
+
+    const response = await api.get<CheckInResponse>(`/check-ins/history/?${params.toString()}`);
     return response.data;
   },
 
-  // Auth
+  checkOutMember: async ({ checkInId }: { checkInId: string }) => {
+    const response = await api.post(`/check-ins/${checkInId}/check-out`);
+    return response.data;
+  },
+
   // Auth
   login: async (username: string, password: string) => {
     const response = await api.post('/token/', { username, password });
@@ -143,19 +190,10 @@ export const adminApi = {
   },
 };
 
-  // Search
-  searchMembers: async (query: string) => {
-    const response = await api.get<Member[]>(`/members/search/?q=${encodeURIComponent(query)}`);
-    return response.data.map(member => ({
-      id: member.id,
-      fullName: member.full_name,
-      membershipNumber: member.membership_number,
-    }));
-  },
-};
-
 // Export individual functions for direct use
 export const getCheckIns = adminApi.getCheckIns;
 export const checkInMember = adminApi.checkInMember;
 export const checkOutMember = adminApi.checkOutMember;
+export const getCheckInStats = adminApi.getCheckInStats;
+export const getCheckInHistory = adminApi.getCheckInHistory;
 export const searchMembers = adminApi.searchMembers;

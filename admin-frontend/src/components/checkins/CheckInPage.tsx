@@ -5,9 +5,17 @@ import { ManualEntryForm } from './ManualEntryForm';
 import { CheckInStatus } from './CheckInStatus';
 import { CheckInHistory } from './CheckInHistory';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { checkInMember, getCheckIns } from '../../services/api';
+import { checkInMember, getCheckIns, getCheckInHistory } from '../../services/api';
 
 export const CheckInPage: React.FC = () => {
+  const [filters, setFilters] = useState({
+    search: '',
+    status: 'all',
+    dateRange: 'today',
+    page: 0,
+    perPage: 10,
+  });
+
   const [notification, setNotification] = useState<{
     message: string;
     type: 'success' | 'error';
@@ -16,9 +24,9 @@ export const CheckInPage: React.FC = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: recentCheckIns, isLoading: isLoadingCheckIns } = useQuery({
-    queryKey: ['checkIns'],
-    queryFn: () => getCheckIns({ limit: 10 }),
+  const { data: checkInData, isLoading: isLoadingCheckIns, error: checkInError } = useQuery({
+    queryKey: ['checkIns', filters],
+    queryFn: () => getCheckInHistory(filters),
   });
 
   const checkInMutation = useMutation({
@@ -90,8 +98,11 @@ export const CheckInPage: React.FC = () => {
               Recent Check-ins
             </Typography>
             <CheckInHistory
-              checkIns={recentCheckIns || []}
+              checkIns={checkInData?.checkIns || []}
               isLoading={isLoadingCheckIns}
+              error={checkInError}
+              totalCount={checkInData?.totalCount || 0}
+              onFilter={setFilters}
             />
           </Paper>
         </Box>

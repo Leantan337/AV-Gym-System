@@ -1,157 +1,204 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.http import HttpResponse
-from django.db.models import Sum, Count
+from django.db.models import Sum
 from django.utils import timezone
-from datetime import timedelta
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from io import BytesIO
-from .models import Invoice
-from .serializers import InvoiceSerializer
+from django.http import FileResponse
+from django.conf import settings
+import os
+import tempfile
+import zipfile
+from datetime import datetime, timedelta
+from weasyprint import HTML
+from .models import Invoice, InvoiceTemplate, InvoiceItem
+from .serializers import (
+    InvoiceTemplateSerializer,
+    InvoiceListSerializer,
+    InvoiceDetailSerializer,
+    CreateInvoiceSerializer,
+    UpdateInvoiceSerializer,
+)
+
+class InvoiceTemplateViewSet(viewsets.ModelViewSet):
+    queryset = InvoiceTemplate.objects.all()
+    serializer_class = InvoiceTemplateSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.all()
-    serializer_class = InvoiceSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['number', 'member__full_name', 'member__email']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CreateInvoiceSerializer
+        elif self.action in ['update', 'partial_update']:
+            return UpdateInvoiceSerializer
+        elif self.action == 'retrieve':
+            return InvoiceDetailSerializer
+        return InvoiceListSerializer
+
     def get_queryset(self):
-        queryset = Invoice.objects.all()
+        queryset = super().get_queryset()
         
-        # Filter by member
-        member = self.request.query_params.get('member', None)
-        if member:
-            queryset = queryset.filter(member=member)
-        
-        # Filter by status
-        status = self.request.query_params.get('status', None)
-        if status:
+        # Status filter
+        status = self.request.query_params.get('status')
+        if status and status != 'all':
             queryset = queryset.filter(status=status)
+
+        # Date range filter
+        date_range = self.request.query_params.get('dateRange')
+        if date_range:
+            today = timezone.now().date()
+            if date_range == 'today':
+                queryset = queryset.filter(created_at__date=today)
+            elif date_range == 'week':
+                week_ago = today - timedelta(days=7)
+                queryset = queryset.filter(created_at__date__gte=week_ago)
+            elif date_range == 'month':
+                month_ago = today - timedelta(days=30)
+                queryset = queryset.filter(created_at__date__gte=month_ago)
+            elif date_range == 'custom':
+                start_date = self.request.query_params.get('startDate')
+                end_date = self.request.query_params.get('endDate')
+                if start_date:
+                    queryset = queryset.filter(created_at__date__gte=start_date)
+                if end_date:
+                    queryset = queryset.filter(created_at__date__lte=end_date)
+
+        return queryset.select_related('member', 'template')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
         
-        # Filter by date range
-        start_date = self.request.query_params.get('start_date', None)
-        end_date = self.request.query_params.get('end_date', None)
-        if start_date and end_date:
-            queryset = queryset.filter(
-                created_at__date__range=[start_date, end_date]
-            )
-        
-        # Filter by amount range
-        min_amount = self.request.query_params.get('min_amount', None)
-        max_amount = self.request.query_params.get('max_amount', None)
-        if min_amount:
-            queryset = queryset.filter(amount__gte=min_amount)
-        if max_amount:
-            queryset = queryset.filter(amount__lte=max_amount)
-        
-        # Sort by
-        sort_by = self.request.query_params.get('sort_by', None)
-        if sort_by:
-            if sort_by == 'date':
-                queryset = queryset.order_by('created_at')
-            elif sort_by == '-date':
-                queryset = queryset.order_by('-created_at')
-            elif sort_by == 'amount':
-                queryset = queryset.order_by('amount')
-            elif sort_by == '-amount':
-                queryset = queryset.order_by('-amount')
-        
-        return queryset
-    
-    @action(detail=True, methods=['post'])
-    def mark_as_paid(self, request, pk=None):
-        invoice = self.get_object()
-        invoice.status = 'paid'
-        invoice.save()
-        serializer = self.get_serializer(invoice)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['get'])
-    def generate_pdf(self, request, pk=None):
-        invoice = self.get_object()
-        
-        # Create PDF
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-        
-        # Add header
-        p.setFont('Helvetica-Bold', 24)
-        p.drawString(50, 750, 'Invoice')
-        
-        # Add invoice details
-        p.setFont('Helvetica', 12)
-        p.drawString(50, 700, f'Invoice Number: {invoice.id}')
-        p.drawString(50, 680, f'Date: {invoice.created_at.strftime("%Y-%m-%d")}')
-        p.drawString(50, 660, f'Due Date: {invoice.due_date.strftime("%Y-%m-%d")}')
-        
-        # Add member details
-        p.drawString(50, 620, 'Member Details:')
-        p.drawString(70, 600, f'Name: {invoice.member.full_name}')
-        p.drawString(70, 580, f'Phone: {invoice.member.phone}')
-        
-        # Add amount
-        p.setFont('Helvetica-Bold', 14)
-        p.drawString(50, 520, f'Amount: ${invoice.amount}')
-        p.drawString(50, 500, f'Status: {invoice.status.upper()}')
-        
-        p.showPage()
-        p.save()
-        
-        # Get PDF value from buffer
-        pdf = buffer.getvalue()
-        buffer.close()
-        
-        # Create response
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="invoice_{invoice.id}.pdf"'
-        response.write(pdf)
-        
-        return response
-    
-    @action(detail=False, methods=['get'])
-    def statistics(self, request):
-        total_invoices = Invoice.objects.count()
-        total_amount = Invoice.objects.aggregate(total=Sum('amount'))['total'] or 0
-        unpaid_amount = Invoice.objects.filter(
-            status='pending'
-        ).aggregate(total=Sum('amount'))['total'] or 0
-        
-        # Last 30 days statistics
-        thirty_days_ago = timezone.now() - timedelta(days=30)
-        invoices_30d = Invoice.objects.filter(created_at__gte=thirty_days_ago)
-        total_amount_30d = invoices_30d.aggregate(total=Sum('amount'))['total'] or 0
-        
-        # Status breakdown
-        status_counts = Invoice.objects.values('status').annotate(
-            count=Count('id')
+        # Calculate statistics
+        stats = queryset.aggregate(
+            total_amount=Sum('total'),
+            paid_amount=Sum('total', filter={'status': 'paid'}),
+            pending_amount=Sum('total', filter={'status': 'pending'}),
         )
-        
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response({
+                'invoices': serializer.data,
+                'totalAmount': float(stats['total_amount'] or 0),
+                'paidAmount': float(stats['paid_amount'] or 0),
+                'pendingAmount': float(stats['pending_amount'] or 0),
+            })
+
+        serializer = self.get_serializer(queryset, many=True)
         return Response({
-            'total_invoices': total_invoices,
-            'total_amount': total_amount,
-            'unpaid_amount': unpaid_amount,
-            'last_30_days': {
-                'total_amount': total_amount_30d,
-                'invoice_count': invoices_30d.count()
-            },
-            'status_breakdown': status_counts
+            'invoices': serializer.data,
+            'totalAmount': float(stats['total_amount'] or 0),
+            'paidAmount': float(stats['paid_amount'] or 0),
+            'pendingAmount': float(stats['pending_amount'] or 0),
         })
-    
+
+    @action(detail=True, methods=['get'])
+    def pdf(self, request, pk=None):
+        invoice = self.get_object()
+        
+        # Generate PDF if it doesn't exist
+        if not invoice.pdf_path or not os.path.exists(invoice.pdf_path):
+            # Render invoice template with context
+            template = invoice.template
+            context = {
+                'invoice': {
+                    'number': invoice.number,
+                    'date': invoice.created_at.strftime('%Y-%m-%d'),
+                    'dueDate': invoice.due_date.strftime('%Y-%m-%d'),
+                },
+                'member': {
+                    'fullName': invoice.member.full_name,
+                    'email': invoice.member.email,
+                    'phone': invoice.member.phone,
+                    'address': invoice.member.address,
+                },
+                'items': [{
+                    'description': item.description,
+                    'quantity': item.quantity,
+                    'unitPrice': float(item.unit_price),
+                    'total': float(item.total),
+                } for item in invoice.items.all()],
+                'subtotal': float(invoice.subtotal),
+                'tax': float(invoice.tax),
+                'total': float(invoice.total),
+            }
+
+            # Replace variables in template
+            html_content = template.content
+            for key, value in context['invoice'].items():
+                html_content = html_content.replace('{{invoice.' + key + '}}', str(value))
+            for key, value in context['member'].items():
+                html_content = html_content.replace('{{member.' + key + '}}', str(value))
+
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+                # Generate PDF using WeasyPrint
+                HTML(string=html_content).write_pdf(tmp.name)
+                invoice.pdf_path = tmp.name
+                invoice.save()
+
+        # Return PDF file
+        return FileResponse(
+            open(invoice.pdf_path, 'rb'),
+            content_type='application/pdf',
+            filename=f'invoice_{invoice.number}.pdf'
+        )
+
     @action(detail=False, methods=['post'])
-    def bulk_status_update(self, request):
-        invoice_ids = request.data.get('invoice_ids', [])
-        new_status = request.data.get('status')
-        
-        if not invoice_ids or not new_status:
-            return Response(
-                {'error': 'Both invoice_ids and status are required'},
-                status=status.HTTP_400_BAD_REQUEST
+    def bulk_pdf(self, request):
+        invoice_ids = request.data.get('invoiceIds', [])
+        invoices = self.get_queryset().filter(id__in=invoice_ids)
+
+        # Create temporary zip file
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+            with zipfile.ZipFile(tmp.name, 'w') as archive:
+                for invoice in invoices:
+                    # Generate PDF for each invoice
+                    response = self.pdf(request, pk=invoice.id)
+                    archive.write(
+                        invoice.pdf_path,
+                        f'invoice_{invoice.number}.pdf'
+                    )
+
+            return FileResponse(
+                open(tmp.name, 'rb'),
+                content_type='application/zip',
+                filename='invoices.zip'
             )
-        
-        updated = Invoice.objects.filter(id__in=invoice_ids).update(status=new_status)
-        
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        queryset = self.get_queryset()
+        date_range = request.query_params.get('dateRange')
+
+        if date_range:
+            today = timezone.now().date()
+            if date_range == 'today':
+                queryset = queryset.filter(created_at__date=today)
+            elif date_range == 'week':
+                week_ago = today - timedelta(days=7)
+                queryset = queryset.filter(created_at__date__gte=week_ago)
+            elif date_range == 'month':
+                month_ago = today - timedelta(days=30)
+                queryset = queryset.filter(created_at__date__gte=month_ago)
+
+        stats = queryset.aggregate(
+            total_count=Count('id'),
+            total_amount=Sum('total'),
+            paid_amount=Sum('total', filter={'status': 'paid'}),
+            pending_amount=Sum('total', filter={'status': 'pending'}),
+        )
+
         return Response({
-            'message': f'Updated {updated} invoices to status {new_status}'
+            'totalCount': stats['total_count'] or 0,
+            'totalAmount': float(stats['total_amount'] or 0),
+            'paidAmount': float(stats['paid_amount'] or 0),
+            'pendingAmount': float(stats['pending_amount'] or 0),
+            'averageAmount': float(stats['total_amount'] or 0) / stats['total_count'] if stats['total_count'] else 0,
+            'paymentRate': float(stats['paid_amount'] or 0) / float(stats['total_amount'] or 1) * 100 if stats['total_amount'] else 0,
         })
