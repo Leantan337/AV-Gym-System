@@ -52,7 +52,45 @@ export interface Invoice {
   due_date: string;
 }
 
+export interface CheckIn {
+  id: string;
+  member: {
+    id: string;
+    fullName: string;
+  };
+  checkInTime: string;
+  checkOutTime: string | null;
+}
+
+export interface CheckInStats {
+  currentlyIn: number;
+  todayTotal: number;
+  averageStayMinutes: number;
+}
+
 export const adminApi = {
+  // Check-ins
+  getCheckIns: async ({ limit = 10 } = {}) => {
+    const response = await api.get<CheckIn[]>(`/checkins/?limit=${limit}`);
+    return response.data;
+  },
+
+  getCheckInStats: async () => {
+    const response = await api.get<CheckInStats>('/checkins/stats/');
+    return response.data;
+  },
+
+  checkInMember: async ({ memberId }: { memberId: string }) => {
+    const response = await api.post('/checkins/', { member: memberId });
+    return response.data;
+  },
+
+  checkOutMember: async ({ checkInId }: { checkInId: string }) => {
+    const response = await api.post(`/checkins/${checkInId}/checkout/`);
+    return response.data;
+  },
+
+  // Auth
   // Auth
   login: async (username: string, password: string) => {
     const response = await api.post('/token/', { username, password });
@@ -103,3 +141,8 @@ export const adminApi = {
     return response.data;
   },
 };
+
+// Export individual functions for direct use
+export const getCheckIns = adminApi.getCheckIns;
+export const checkInMember = adminApi.checkInMember;
+export const checkOutMember = adminApi.checkOutMember;
