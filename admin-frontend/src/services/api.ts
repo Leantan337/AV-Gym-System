@@ -42,6 +42,7 @@ export interface Member {
   status: 'active' | 'inactive';
   phone: string;
   address: string;
+  membership_number?: string;
 }
 
 export interface Invoice {
@@ -142,7 +143,19 @@ export const adminApi = {
   },
 };
 
+  // Search
+  searchMembers: async (query: string) => {
+    const response = await api.get<Member[]>(`/members/search/?q=${encodeURIComponent(query)}`);
+    return response.data.map(member => ({
+      id: member.id,
+      fullName: member.full_name,
+      membershipNumber: member.membership_number,
+    }));
+  },
+};
+
 // Export individual functions for direct use
 export const getCheckIns = adminApi.getCheckIns;
 export const checkInMember = adminApi.checkInMember;
 export const checkOutMember = adminApi.checkOutMember;
+export const searchMembers = adminApi.searchMembers;

@@ -1,7 +1,8 @@
-import React from 'react';
-import { Paper, Typography, Box, Skeleton } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { Paper, Typography, Box, Skeleton, Alert } from '@mui/material';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../../services/api';
+import wsService from '../../services/websocket';
 
 interface CheckInStats {
   currentlyIn: number;
@@ -10,11 +11,37 @@ interface CheckInStats {
 }
 
 export const CheckInStatus: React.FC = () => {
-  const { data: stats, isLoading } = useQuery({
+  const queryClient = useQueryClient();
+  const { data: stats, isLoading, error } = useQuery({
     queryKey: ['checkInStats'],
     queryFn: adminApi.getCheckInStats,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+
+  useEffect(() => {
+    // Connect to WebSocket when component mounts
+    wsService.connect();
+
+    // Subscribe to check-in updates
+    const handleCheckInUpdate = (data: CheckInStats) => {
+      queryClient.setQueryData(['checkInStats'], data);
+    };
+
+    wsService.subscribe('check_in_update', handleCheckInUpdate);
+
+    // Cleanup on unmount
+    return () => {
+      wsService.unsubscribe('check_in_update', handleCheckInUpdate);
+    };
+  }, [queryClient]);
+
+  if (error) {
+    return (
+      <Alert severity="error" sx={{ mb: 2 }}>
+        Error loading check-in status. Please try again later.
+      </Alert>
+    );
+  }
 
   if (isLoading) {
     return (
