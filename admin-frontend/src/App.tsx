@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material';
+import { WebSocketProvider } from './contexts/WebSocketContext';
+import { CheckInProvider } from './contexts/CheckInContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { Members } from './components/Members';
@@ -30,15 +32,19 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
-        <Router>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/members" element={<Members />} />
-              <Route path="/check-in" element={<CheckInPage />} />
-            </Routes>
-          </Layout>
-        </Router>
+        <WebSocketProvider>
+          <CheckInProvider>
+            <Router>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/members" element={<Members />} />
+                  <Route path="/check-in" element={<CheckInPage />} />
+                </Routes>
+              </Layout>
+            </Router>
+          </CheckInProvider>
+        </WebSocketProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

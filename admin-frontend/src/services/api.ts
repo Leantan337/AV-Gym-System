@@ -76,7 +76,7 @@ export interface CheckInStats {
   averageStayMinutes: number;
 }
 
-interface CheckInFilters {
+export interface CheckInFilters {
   search?: string;
   status?: 'all' | 'in' | 'out';
   dateRange?: 'today' | 'yesterday' | 'week' | 'all';
@@ -84,7 +84,7 @@ interface CheckInFilters {
   perPage?: number;
 }
 
-interface CheckInResponse {
+export interface CheckInResponse {
   checkIns: CheckIn[];
   totalCount: number;
 }

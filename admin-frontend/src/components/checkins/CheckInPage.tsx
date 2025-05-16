@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { Box, Paper, Typography, Alert, Snackbar } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Paper, Typography, Alert, Snackbar, CircularProgress } from '@mui/material';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ManualEntryForm } from './ManualEntryForm';
 import { CheckInStatus } from './CheckInStatus';
 import { CheckInHistory } from './CheckInHistory';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { checkInMember, getCheckIns, getCheckInHistory } from '../../services/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getCheckInHistory, CheckInFilters, CheckInResponse } from '../../services/api';
+import { useCheckIn } from '../../contexts/CheckInContext';
 
 export const CheckInPage: React.FC = () => {
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<CheckInFilters>({
     search: '',
     status: 'all',
     dateRange: 'today',
@@ -18,38 +19,58 @@ export const CheckInPage: React.FC = () => {
 
   const [notification, setNotification] = useState<{
     message: string;
-    type: 'success' | 'error';
+    type: 'success' | 'error' | 'info';
     open: boolean;
-  }>({ message: '', type: 'success', open: false });
+  }>({ message: '', type: 'info', open: false });
 
   const queryClient = useQueryClient();
+  const { checkIn, checkOut, latestCheckIn, error: checkInError } = useCheckIn();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const { data: checkInData, isLoading: isLoadingCheckIns, error: checkInError } = useQuery({
+  // Fetch check-in history
+  const { data: checkInData, isLoading: isLoadingCheckIns } = useQuery({
     queryKey: ['checkIns', filters],
     queryFn: () => getCheckInHistory(filters),
   });
 
-  const checkInMutation = useMutation({
-    mutationFn: checkInMember,
-    onSuccess: () => {
+  // Handle WebSocket check-in updates
+  useEffect(() => {
+    if (latestCheckIn) {
       setNotification({
-        message: 'Check-in successful!',
+        message: `Member ${latestCheckIn.member.full_name} checked ${latestCheckIn.status === 'checked_in' ? 'in' : 'out'}`,
         type: 'success',
         open: true,
       });
       queryClient.invalidateQueries({ queryKey: ['checkIns'] });
-    },
-    onError: (error: Error) => {
+    }
+  }, [latestCheckIn, queryClient]);
+
+  // Handle WebSocket errors
+  useEffect(() => {
+    if (checkInError) {
       setNotification({
-        message: error.message || 'Check-in failed',
+        message: typeof checkInError === 'string' ? checkInError : 'An error occurred',
         type: 'error',
         open: true,
       });
-    },
-  });
+    }
+  }, [checkInError]);
 
   const handleCheckIn = async (memberId: string) => {
-    checkInMutation.mutate({ memberId });
+    try {
+      setIsLoading(true);
+      await checkIn(memberId);
+      // Success notification is handled by the WebSocket listener
+    } catch (error) {
+      console.error('Check-in error:', error);
+      setNotification({
+        message: 'Failed to process check-in. Please try again.',
+        type: 'error',
+        open: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCloseNotification = () => {
@@ -87,9 +108,7 @@ export const CheckInPage: React.FC = () => {
         </Box>
 
         {/* Current Status */}
-        <Box>
-          <CheckInStatus />
-        </Box>
+        <CheckInStatus />
 
         {/* Check-in History */}
         <Box>
@@ -100,7 +119,7 @@ export const CheckInPage: React.FC = () => {
             <CheckInHistory
               checkIns={checkInData?.checkIns || []}
               isLoading={isLoadingCheckIns}
-              error={checkInError}
+              error={checkInError ? new Error(String(checkInError)) : undefined}
               totalCount={checkInData?.totalCount || 0}
               onFilter={setFilters}
             />
@@ -112,10 +131,11 @@ export const CheckInPage: React.FC = () => {
         open={notification.open}
         autoHideDuration={6000}
         onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <Alert
-          onClose={handleCloseNotification}
-          severity={notification.type}
+        <Alert 
+          onClose={handleCloseNotification} 
+          severity={notification.type} 
           sx={{ width: '100%' }}
         >
           {notification.message}

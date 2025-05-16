@@ -29,7 +29,6 @@ class WebSocketService {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
   private readonly PING_INTERVAL = 30000; // 30 seconds
-  private reconnectDelay = 1000; // 1 second
 
   constructor(private baseUrl: string) {}
 
@@ -53,37 +52,38 @@ class WebSocketService {
         this.setupPing();
       };
 
-    this.socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WebSocketMessage<any>;
-        const { type, payload } = message;
+      this.socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketMessage;
+          const { type, payload } = message;
 
-        // Handle ping-pong
-        if (type === 'pong') {
-          return;
+          // Handle ping-pong
+          if (type === 'pong') {
+            return;
+          }
+
+
+          const handlers = this.messageHandlers.get(type);
+          if (handlers) {
+            handlers.forEach(handler => handler(payload));
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
         }
+      };
 
-        const handlers = this.messageHandlers.get(type);
-        if (handlers && handlers.size > 0) {
-          handlers.forEach(handler => handler(payload));
-        }
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
-      }
-    };
+      this.socket.onclose = () => {
+        console.log('WebSocket disconnected');
+        this.connectionStatus = 'disconnected';
+        this.notifyConnectionStatusChange();
+        this.reconnect();
+      };
 
-    this.socket.onclose = () => {
-      console.log('WebSocket disconnected');
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
-      this.reconnect();
-    };
-
-    this.socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
-    };
+      this.socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.connectionStatus = 'disconnected';
+        this.notifyConnectionStatusChange();
+      };
     } catch (error) {
       console.error('Error initializing WebSocket:', error);
       this.connectionStatus = 'disconnected';
@@ -91,35 +91,13 @@ class WebSocketService {
     }
   }
 
-  // Notify all connection status listeners
-  private notifyConnectionStatusChange() {
-    const handlers = this.messageHandlers.get('connection_status');
-    if (handlers && handlers.size > 0) {
-      handlers.forEach(handler => handler(this.connectionStatus));
-    }
-  }
-
-  // Get current connection status
-  getConnectionStatus(): ConnectionStatus {
-    if (!this.socket) return 'disconnected';
-    
-    switch (this.socket.readyState) {
-      case WebSocket.CONNECTING:
-        return 'connecting';
-      case WebSocket.OPEN:
-        return 'connected';
-      default:
-        return 'disconnected';
-    }
-  }
-  
   private setupPing() {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
     }
 
     this.pingInterval = setInterval(() => {
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      if (this.socket?.readyState === WebSocket.OPEN) {
         this.socket.send(JSON.stringify({ type: 'ping' }));
       }
     }, this.PING_INTERVAL);
@@ -174,7 +152,7 @@ class WebSocketService {
     return new Promise((resolve, reject) => {
       if (this.socket?.readyState === WebSocket.OPEN) {
         try {
-          this.socket.send(JSON.stringify({ type: event, payload: data }));
+          this.socket.send(JSON.stringify({ type: event, data }));
           resolve();
         } catch (error) {
           console.error('Error sending WebSocket message:', error);
@@ -204,21 +182,27 @@ class WebSocketService {
       this.socket = null;
       this.connectionStatus = 'disconnected';
       this.notifyConnectionStatusChange();
-      this.messageHandlers.clear();
-    } else {
-      console.error('WebSocket is not connected');
     }
   }
-  
-  // Force a reconnection attempt
-  reconnectNow() {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+
+  private notifyConnectionStatusChange() {
+    const handlers = this.messageHandlers.get('connection_status');
+    if (handlers) {
+      handlers.forEach(handler => handler(this.connectionStatus));
     }
-    this.reconnectAttempts = 0;
-    this.reconnectDelay = 1000;
-    this.connect();
+  }
+
+  getConnectionStatus(): ConnectionStatus {
+    if (!this.socket) return 'disconnected';
+    
+    switch (this.socket.readyState) {
+      case WebSocket.CONNECTING:
+        return 'connecting';
+      case WebSocket.OPEN:
+        return 'connected';
+      default:
+        return 'disconnected';
+    }
   }
 }
 
