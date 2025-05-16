@@ -84,13 +84,17 @@ export const InvoiceTemplate: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const handleEdit = (template: IInvoiceTemplate) => {
-    setSelectedTemplate(template);
+  const handleTemplateSelect = (template: IInvoiceTemplate) => {
     setFormData({
       name: template.name,
       description: template.description,
       content: template.content,
     });
+    setSelectedTemplate(template);
+  };
+
+  const handleEdit = (template: IInvoiceTemplate) => {
+    handleTemplateSelect(template);
     setIsFormOpen(true);
   };
 
@@ -137,18 +141,21 @@ export const InvoiceTemplate: React.FC = () => {
     setIsPreviewOpen(true);
   };
 
-  const availableVariables = [
-    '{{invoice.number}}',
-    '{{invoice.date}}',
-    '{{invoice.dueDate}}',
-    '{{member.fullName}}',
-    '{{member.email}}',
-    '{{member.phone}}',
-    '{{member.address}}',
-    '{{items}}',
-    '{{subtotal}}',
-    '{{tax}}',
-    '{{total}}',
+  interface TemplateVariable {
+    name: string;
+    description: string;
+  }
+
+  const availableVariables: TemplateVariable[] = [
+    { name: 'memberName', description: 'Full name of the member' },
+    { name: 'memberId', description: 'Unique member ID' },
+    { name: 'invoiceNumber', description: 'Unique invoice number' },
+    { name: 'invoiceDate', description: 'Date the invoice was created' },
+    { name: 'dueDate', description: 'Payment due date' },
+    { name: 'subtotal', description: 'Subtotal amount before tax' },
+    { name: 'tax', description: 'Tax amount' },
+    { name: 'total', description: 'Total amount including tax' },
+    { name: 'items', description: 'Table of invoice line items' }
   ];
 
   return (
@@ -254,37 +261,27 @@ export const InvoiceTemplate: React.FC = () => {
                 <Typography variant="subtitle2" gutterBottom>
                   Available Variables:
                 </Typography>
-                <Box sx={{ mb: 2 }}>
-                  {availableVariables.map((variable) => (
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {availableVariables.map((variable, idx) => (
                     <Button
-                      key={variable}
+                      key={idx}
                       size="small"
                       variant="outlined"
-                      sx={{ m: 0.5 }}
                       onClick={() => {
-                        const textarea = document.getElementById('template-content') as HTMLTextAreaElement;
-                        if (textarea) {
-                          const start = textarea.selectionStart;
-                          const end = textarea.selectionEnd;
-                          const text = textarea.value;
+                        const textField = document.getElementById('template-content') as HTMLTextAreaElement;
+                        if (textField) {
+                          const start = textField.selectionStart;
+                          const end = textField.selectionEnd;
+                          const text = textField.value;
                           const before = text.substring(0, start);
-                          const after = text.substring(end);
-                          setFormData({
-                            ...formData,
-                            content: before + variable + after,
-                          });
-                          // Set cursor position after the inserted variable
-                          setTimeout(() => {
-                            textarea.focus();
-                            textarea.setSelectionRange(
-                              start + variable.length,
-                              start + variable.length
-                            );
-                          }, 0);
+                          const after = text.substring(end, text.length);
+                          const tag = `{{${variable.name}}}`;
+                          const newText = before + tag + after;
+                          setFormData({ ...formData, content: newText });
                         }
                       }}
                     >
-                      {variable}
+                      {variable.name}
                     </Button>
                   ))}
                 </Box>

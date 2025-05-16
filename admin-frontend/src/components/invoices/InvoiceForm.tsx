@@ -22,6 +22,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tooltip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemButton,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Plus as PlusIcon, Trash2 as TrashIcon } from 'lucide-react';
@@ -38,8 +43,20 @@ interface InvoiceFormProps {
   onCancel: () => void;
 }
 
-interface InvoiceItemFormData extends Omit<InvoiceItem, 'total'> {
+export interface InvoiceItemFormData extends Omit<InvoiceItem, 'total'> {
   total?: number;
+}
+
+interface MemberSearchResult {
+  id: string;
+  fullName: string;
+  membershipNumber: string;
+}
+
+interface PresetItem {
+  name: string;
+  description: string;
+  price: number;
 }
 
 export const InvoiceForm: React.FC<InvoiceFormProps> = ({
@@ -47,13 +64,14 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedMember, setSelectedMember] = useState<MemberSearchResult | null>(null);
   const [items, setItems] = useState<InvoiceItemFormData[]>([]);
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [notes, setNotes] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [presetItemsOpen, setPresetItemsOpen] = useState(false);
 
   const { data: templates } = useQuery({
     queryKey: ['invoiceTemplates'],
@@ -71,9 +89,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
       setSelectedMember({
         id: invoice.member.id,
         fullName: invoice.member.fullName,
-        email: invoice.member.email,
-        phone: invoice.member.phone,
-        address: invoice.member.address,
+        membershipNumber: invoice.member.membershipNumber,
       });
       setItems(invoice.items.map(item => ({
         description: item.description,
@@ -112,28 +128,82 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
   const calculateTotal = () => {
     return items.reduce((sum, item) => {
-      const total = (item.quantity || 0) * (item.unitPrice || 0);
-      return sum + total;
+      const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+      return sum + itemTotal;
     }, 0);
+  };
+
+  const calculateSubtotal = () => {
+    return items.reduce((sum, item) => {
+      const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+      return sum + itemTotal;
+    }, 0);
+  };
+
+  const calculateTax = (subtotal: number) => {
+    // Default tax rate of 10%
+    return subtotal * 0.1;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMember || !dueDate || !selectedTemplate) return;
+
+    if (!selectedMember) {
+      alert('Please select a member');
+      return;
+    }
+
+    if (items.length === 0 || items.some(item => !item.description || !item.quantity || !item.unitPrice)) {
+      alert('Please fill in all item details');
+      return;
+    }
 
     const data: CreateInvoiceData = {
       memberId: selectedMember.id,
-      items: items.map(({ total, ...item }) => item), // Remove calculated total
-      dueDate: format(dueDate, 'yyyy-MM-dd'),
-      notes,
+      items: items.map(item => ({
+        description: item.description,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+      })),
+      dueDate: dueDate ? format(dueDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+      notes: notes,
       templateId: selectedTemplate,
     };
 
     onSubmit(data);
   };
 
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplate(templateId);
+  };
+
   const handlePreview = () => {
     setPreviewOpen(true);
+  };
+
+  // Preset common invoice items
+  const presetItems: PresetItem[] = [
+    { name: 'Monthly Membership', description: 'Standard monthly gym membership', price: 49.99 },
+    { name: 'Personal Training Session', description: 'One-on-one personal training session (60 min)', price: 75.00 },
+    { name: 'Registration Fee', description: 'One-time registration fee for new members', price: 25.00 },
+    { name: 'Fitness Assessment', description: 'Complete fitness assessment and goal setting', price: 35.00 },
+    { name: 'Group Class Pack', description: '10-class pack for group fitness classes', price: 120.00 },
+  ];
+
+  const handleAddPresetItem = (preset: PresetItem) => {
+    setItems([...items, {
+      description: preset.description,
+      quantity: 1,
+      unitPrice: preset.price
+    }]);
+    setPresetItemsOpen(false);
   };
 
   return (
@@ -157,12 +227,12 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
         />
 
         {/* Template Selection */}
-        <FormControl required>
-          <InputLabel>Invoice Template</InputLabel>
+        <FormControl fullWidth>
+          <InputLabel>Template</InputLabel>
           <Select
             value={selectedTemplate}
-            label="Invoice Template"
-            onChange={(e) => setSelectedTemplate(e.target.value)}
+            onChange={(e) => handleTemplateChange(e.target.value as string)}
+            required
           >
             {templates?.map((template) => (
               <MenuItem key={template.id} value={template.id}>
@@ -170,19 +240,28 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </MenuItem>
             ))}
           </Select>
+          <Button 
+            sx={{ mt: 1 }}
+            onClick={handlePreview}
+            disabled={!selectedTemplate}
+            variant="outlined"
+            fullWidth
+          >
+            Preview Invoice
+          </Button>
         </FormControl>
 
         {/* Items */}
         <Paper>
-          <TableContainer>
+          <TableContainer component={Paper} sx={{ mt: 3 }}>
             <Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Description</TableCell>
-                  <TableCell>Quantity</TableCell>
-                  <TableCell>Unit Price</TableCell>
-                  <TableCell>Total</TableCell>
-                  <TableCell width={50} />
+                  <TableCell align="right">Quantity</TableCell>
+                  <TableCell align="right">Unit Price</TableCell>
+                  <TableCell align="right">Total</TableCell>
+                  <TableCell width="50px"></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -191,49 +270,87 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     <TableCell>
                       <TextField
                         fullWidth
+                        size="small"
                         value={item.description}
-                        onChange={(e) =>
-                          handleItemChange(index, 'description', e.target.value)
-                        }
-                        required
+                        onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                        placeholder="Description"
+                        InputProps={{
+                          endAdornment: index === 0 ? (
+                            <Tooltip title="Add common items">
+                              <IconButton size="small" onClick={() => setPresetItemsOpen(true)}>
+                                <PlusIcon size={16} />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null
+                        }}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell align="right">
                       <TextField
                         type="number"
+                        size="small"
                         value={item.quantity}
-                        onChange={(e) =>
-                          handleItemChange(index, 'quantity', Number(e.target.value))
-                        }
-                        required
+                        onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value) || 0)}
                         inputProps={{ min: 1 }}
+                        sx={{ width: '70px' }}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell align="right">
                       <TextField
                         type="number"
+                        size="small"
                         value={item.unitPrice}
-                        onChange={(e) =>
-                          handleItemChange(index, 'unitPrice', Number(e.target.value))
-                        }
-                        required
+                        onChange={(e) => handleItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                         inputProps={{ min: 0, step: 0.01 }}
+                        sx={{ width: '100px' }}
+                        InputProps={{
+                          startAdornment: <Typography variant="body2">$</Typography>
+                        }}
                       />
                     </TableCell>
-                    <TableCell>
-                      ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                    <TableCell align="right">
+                      {formatCurrency(item.quantity * item.unitPrice)}
                     </TableCell>
                     <TableCell>
                       <IconButton
-                        size="small"
                         onClick={() => handleRemoveItem(index)}
                         disabled={items.length === 1}
+                        size="small"
+                        color="error"
                       >
-                        <TrashIcon size={20} />
+                        <TrashIcon size={18} />
                       </IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
+                {/* Summary row */}
+                <TableRow>
+                  <TableCell colSpan={3} align="right">
+                    <Typography variant="subtitle2">Subtotal:</Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="subtitle2">{formatCurrency(calculateSubtotal())}</Typography>
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={3} align="right">
+                    <Typography variant="subtitle2">Tax (10%):</Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="subtitle2">{formatCurrency(calculateTax(calculateSubtotal()))}</Typography>
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={3} align="right">
+                    <Typography variant="subtitle1"><strong>Total:</strong></Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="subtitle1"><strong>{formatCurrency(calculateSubtotal() + calculateTax(calculateSubtotal()))}</strong></Typography>
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
               </TableBody>
             </Table>
           </TableContainer>
@@ -312,6 +429,94 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           <Button onClick={() => setPreviewOpen(false)}>
             Close
           </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Preset Items Dialog */}
+      <Dialog open={presetItemsOpen} onClose={() => setPresetItemsOpen(false)}>
+        <DialogTitle>Common Invoice Items</DialogTitle>
+        <DialogContent>
+          <List>
+            {presetItems.map((preset, index) => (
+              <ListItem key={index} disablePadding>
+                <ListItemButton onClick={() => handleAddPresetItem(preset)}>
+                  <ListItemText
+                    primary={preset.name}
+                    secondary={`${preset.description} - ${formatCurrency(preset.price)}`}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPresetItemsOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Template Preview Dialog */}
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Invoice Preview</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, p: 3, border: '1px solid #ddd' }}>
+            <Typography variant="h5" align="center" gutterBottom>INVOICE</Typography>
+            
+            {selectedMember && (
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1"><strong>Bill To:</strong></Typography>
+                <Typography>{selectedMember.fullName}</Typography>
+                <Typography>Member ID: {selectedMember.membershipNumber}</Typography>
+              </Box>
+            )}
+            
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Description</TableCell>
+                    <TableCell align="right">Quantity</TableCell>
+                    <TableCell align="right">Unit Price</TableCell>
+                    <TableCell align="right">Total</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {items.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{item.description}</TableCell>
+                      <TableCell align="right">{item.quantity}</TableCell>
+                      <TableCell align="right">{formatCurrency(item.unitPrice)}</TableCell>
+                      <TableCell align="right">{formatCurrency(item.quantity * item.unitPrice)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow>
+                    <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
+                    <TableCell align="right">{formatCurrency(calculateSubtotal())}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} align="right"><strong>Tax (10%):</strong></TableCell>
+                    <TableCell align="right">{formatCurrency(calculateTax(calculateSubtotal()))}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} align="right"><strong>Total:</strong></TableCell>
+                    <TableCell align="right">{formatCurrency(calculateSubtotal() + calculateTax(calculateSubtotal()))}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="subtitle1"><strong>Notes:</strong></Typography>
+              <Typography>{notes || 'No notes'}</Typography>
+            </Box>
+
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="body2" color="text.secondary" align="center">
+                Due date: {dueDate ? format(dueDate, 'MMMM d, yyyy') : 'Not specified'}
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
