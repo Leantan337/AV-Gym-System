@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gym Member ID Card</title>
+    <link rel="stylesheet" href="{% static 'css/id_card.css' %}">
+    <style>
+        @page {
+            size: 3.375in 2.125in; /* Standard ID card size */
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            color: #333;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="id-card">
+        <div class="header">
+            AV GYM MEMBER CARD
+        </div>
+        <div class="content">
+            <div class="photo">
+                {% if member.image %}
+                    <img src="{{ member.image.url }}" alt="Member Photo">
+                {% else %}
+                    <img src="{% static 'img/placeholder.png' %}" alt="No Photo">
+                {% endif %}
+            </div>
+            <div class="details">
+                <div class="member-info">
+                    <div class="row">
+                        <div class="label">Name:</div>
+                        <div class="value">{{ member.full_name|upper }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="label">ID:</div>
+                        <div class="value member-id">{{ member.id }}</div>
+                    </div>
+                    <div class="dates">
+                        <div class="date">Issued: {{ current_date }}</div>
+                        <div class="date">Expires: {{ expiry_date }}</div>
+                    </div>
+                </div>
+                <div class="barcode-container">
+                    <div class="barcode">
+                        <img src="{{ barcode }}" alt="Barcode">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            IF FOUND, PLEASE RETURN TO AV GYM • 123 GYM STREET, WORKOUT CITY • (123) 456-7890
+        </div>
+    </div>
+</body>
+</html>

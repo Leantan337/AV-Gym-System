@@ -64,6 +64,12 @@ export const Members: React.FC = () => {
     enabled: !!selectedMember
   });
 
+  const { data: selectedMemberData } = useQuery<Member | null>({
+    queryKey: ['member', selectedMember],
+    queryFn: () => selectedMember ? adminApi.getMemberById(selectedMember) : null,
+    enabled: !!selectedMember
+  });
+
   const bulkActionMutation = useMutation<
     unknown,
     Error,
@@ -81,6 +87,16 @@ export const Members: React.FC = () => {
       setSelected(members.map((member: Member) => member.id));
     } else {
       setSelected([]);
+    }
+  };
+
+  const handleDownloadIdCard = async () => {
+    if (!selectedMember) return;
+    try {
+      await adminApi.downloadIdCard(selectedMember);
+    } catch (error) {
+      console.error('Failed to download ID card:', error);
+      // TODO: Show error toast
     }
   };
 
@@ -271,6 +287,9 @@ export const Members: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
+          <Button onClick={handleDownloadIdCard} variant="contained" color="primary">
+            Download ID Card
+          </Button>
           <Button onClick={() => setSelectedMember(null)}>Close</Button>
         </DialogActions>
       </Dialog>

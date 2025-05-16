@@ -43,6 +43,7 @@ export interface Member {
   phone: string;
   address: string;
   membership_number: string;
+  image_url?: string;
 }
 
 interface MemberSearchResult {
@@ -161,6 +162,11 @@ export const adminApi = {
     const response = await api.get<Member[]>('/members/');
     return response.data;
   },
+  
+  getMemberById: async (id: string) => {
+    const response = await api.get<Member>(`/api/members/${id}/`);
+    return response.data;
+  },
 
   getMemberStats: async (memberId: string) => {
     const response = await api.get(`/admin/member-stats/?member_id=${memberId}`);
@@ -168,11 +174,36 @@ export const adminApi = {
   },
 
   bulkMemberAction: async (action: 'activate' | 'deactivate', memberIds: string[]) => {
-    const response = await api.post('/admin/bulk-member-action/', {
+    const response = await api.post('/members/bulk_action/', {
       action,
       member_ids: memberIds,
     });
     return response.data;
+  },
+  
+  downloadIdCard: async (memberId: string) => {
+    try {
+      const response = await api.get(`/members/${memberId}/id_card/`, {
+        responseType: 'blob',
+      });
+      
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `id_card_${memberId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading ID card:', error);
+      throw error;
+    }
   },
 
   // Invoices
@@ -182,7 +213,7 @@ export const adminApi = {
   },
 
   bulkInvoiceAction: async (action: 'mark_paid' | 'mark_pending', invoiceIds: string[]) => {
-    const response = await api.post('/admin/bulk-invoice-action/', {
+    const response = await api.post('/invoices/bulk_action/', {
       action,
       invoice_ids: invoiceIds,
     });

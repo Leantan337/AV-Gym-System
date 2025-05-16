@@ -3,9 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.http import HttpResponse
 from datetime import timedelta
+import os
 from .models import Member
 from .serializers import MemberSerializer
+from .services import IDCardGenerator
+import tempfile
 
 class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all()
@@ -49,6 +53,12 @@ class MemberViewSet(viewsets.ModelViewSet):
                 queryset = queryset.order_by('-created_at')
         
         return queryset
+        
+    def get_serializer_context(self):
+        """Add request to serializer context"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -87,3 +97,23 @@ class MemberViewSet(viewsets.ModelViewSet):
         return Response({
             'message': f'Updated {updated} members to status {new_status}'
         })
+    
+    @action(detail=True, methods=['get'])
+    def id_card(self, request, pk=None):
+        """Generate and return a PDF ID card for the member"""
+        member = self.get_object()
+        
+        try:
+            # Generate the PDF content
+            pdf_content = IDCardGenerator.generate_id_card_pdf(member)
+            
+            # Create a response with the PDF
+            response = HttpResponse(pdf_content, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="id_card_{member.id}.pdf"'
+            return response
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to generate ID card: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
