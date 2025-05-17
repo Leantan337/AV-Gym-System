@@ -23,13 +23,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Checkbox,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent
+  Checkbox
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -89,24 +83,37 @@ function a11yProps(index: TabValue) {
   };
 }
 
-// Import InvoiceGenerator for creating/editing invoices
-import { InvoiceGenerator } from './InvoiceGenerator';
-
 // Invoice Form component
 const InvoiceForm: React.FC<{
   onSubmit: (data: CreateInvoiceData) => void;
   initialData?: Invoice | null;
-  onClose: () => void;
-}> = ({ onSubmit, initialData, onClose }) => {
-  // InvoiceGenerator handles its own submission, we just need to close the dialog when done
+}> = ({ onSubmit, initialData }) => {
+  // This would be replaced with a proper form implementation
   return (
-    <Box>
-      <InvoiceGenerator 
-        onSuccess={() => {
-          // This will be called when the invoice is successfully created by the InvoiceGenerator
-          onClose();
-        }}
-      />
+    <Box p={2}>
+      <Typography variant="h6">
+        {initialData ? 'Edit Invoice' : 'Create New Invoice'}
+      </Typography>
+      <Button
+        variant="contained"
+        onClick={() =>
+          onSubmit({
+            memberId: initialData?.memberId || 'member-1',
+            items: [
+              {
+                description: 'Mock item',
+                quantity: 1,
+                unitPrice: 100,
+              },
+            ],
+            dueDate: new Date().toISOString().split('T')[0],
+            notes: initialData?.notes,
+            templateId: initialData?.templateId || 'template-1',
+          })
+        }
+      >
+        {initialData ? 'Update' : 'Create'}
+      </Button>
     </Box>
   );
 };
@@ -220,13 +227,6 @@ const InvoiceList: React.FC<{
   );
 };
 
-// Define filter state interface
-interface FilterState {
-  status: 'all' | 'draft' | 'pending' | 'paid' | 'cancelled';
-  dateRange: 'all' | 'today' | 'week' | 'month' | 'year';
-  searchTerm: string;
-}
-
 // Main InvoicePage component
 export const InvoicePage: React.FC = () => {
   const [tabValue, setTabValue] = useState<TabValue>('invoices');
@@ -239,37 +239,14 @@ export const InvoicePage: React.FC = () => {
     selectedInvoice: null,
     editingInvoice: null
   });
-  
-  // Add filters state
-  const [filters, setFilters] = useState<FilterState>({
-    status: 'all',
-    dateRange: 'all',
-    searchTerm: ''
-  });
 
   const queryClient = useQueryClient();
 
-  // Function to map our UI dateRange to API dateRange
-  const mapDateRangeToApi = (dateRange: FilterState['dateRange']): InvoiceFilters['dateRange'] | undefined => {
-    if (dateRange === 'all') return undefined;
-    if (dateRange === 'year') return 'custom'; // Map 'year' to 'custom' for API
-    return dateRange; // 'today', 'week', and 'month' are directly compatible
-  };
-
-  // Query to fetch invoices with filters
-  const { data: invoiceResponse, isLoading } = useQuery<InvoiceListResponse>({
-    queryKey: ['invoices', filters],
-    queryFn: () => invoiceApi.getInvoices({
-      status: filters.status !== 'all' ? filters.status as Invoice['status'] : undefined,
-      dateRange: mapDateRangeToApi(filters.dateRange),
-      search: filters.searchTerm || undefined,
-      page: 1,
-      perPage: 50
-    })
+  // Query to fetch invoices
+  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+    queryKey: ['invoices'],
+    queryFn: () => invoiceApi.getInvoices().then(res => res.items)
   });
-  
-  // Extract invoices from response
-  const invoices = invoiceResponse?.items || [];
 
   // Mutation for bulk status updates
   const bulkUpdateStatusMutation = useMutation({
@@ -474,78 +451,10 @@ export const InvoicePage: React.FC = () => {
       )}
 
       <TabPanel value={tabValue} index="invoices">
-        {/* Filter Controls */}
-        <Paper elevation={0} sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle1" gutterBottom>Filters</Typography>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <TextField
-              label="Search"
-              variant="outlined"
-              size="small"
-              fullWidth
-              value={filters.searchTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilters({ ...filters, searchTerm: e.target.value })}
-              placeholder="Search by invoice number or member name"
-            />
-            <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={filters.status}
-                onChange={(e: SelectChangeEvent) => setFilters({ ...filters, status: e.target.value as FilterState['status'] })}
-                label="Status"
-              >
-                <MenuItem value="all">All Statuses</MenuItem>
-                <MenuItem value="draft">Draft</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="paid">Paid</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Date Range</InputLabel>
-              <Select
-                value={filters.dateRange}
-                onChange={(e: SelectChangeEvent) => setFilters({ ...filters, dateRange: e.target.value as FilterState['dateRange'] })}
-                label="Date Range"
-              >
-                <MenuItem value="all">All Time</MenuItem>
-                <MenuItem value="today">Today</MenuItem>
-                <MenuItem value="week">This Week</MenuItem>
-                <MenuItem value="month">This Month</MenuItem>
-                <MenuItem value="year">This Year</MenuItem>
-              </Select>
-            </FormControl>
-            <Button
-              variant="outlined"
-              onClick={() => setFilters({ status: 'all', dateRange: 'all', searchTerm: '' })}
-              size="small"
-            >
-              Reset Filters
-            </Button>
-          </Stack>
-        </Paper>
-
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
             <CircularProgress />
           </Box>
-        ) : invoices.length === 0 ? (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h6" color="text.secondary">No invoices found</Typography>
-            {(filters.status !== 'all' || filters.dateRange !== 'all' || filters.searchTerm) && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Try adjusting your filters to see more results
-              </Typography>
-            )}
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleCreateInvoice}
-              sx={{ mt: 2 }}
-            >
-              Create New Invoice
-            </Button>
-          </Paper>
         ) : (
           <InvoiceList
             invoices={invoices}
@@ -579,7 +488,6 @@ export const InvoicePage: React.FC = () => {
           <InvoiceForm
             onSubmit={handleSubmit}
             initialData={dialogState.editingInvoice}
-            onClose={handleCloseForm}
           />
         </DialogContent>
         <DialogActions>
