@@ -1,5 +1,36 @@
 # AV-Gym-System Development Logs
 
+[2025-05-17 18:33] Check-In Module Implementation
+
+## 🏋️ Check-In System (In Progress)
+
+### Frontend Components
+- ✅ Created CheckInPage with real-time status display
+- ✅ Implemented BarcodeScanner component with error handling
+- ✅ Added ManualEntryForm with autocomplete
+- ✅ Built CheckInStatusCard for member status visibility
+- ✅ Implemented CheckInHistoryTable with pagination
+
+### Backend Integration
+- 🔄 WebSocket setup for real-time updates (in progress)
+- ✅ Basic check-in/check-out API endpoints
+- 🔄 Barcode validation endpoint (in progress)
+
+### Features Implemented
+- ✅ Basic check-in/check-out flow
+- ✅ Member search and validation
+- ✅ Check-in history tracking
+- ❌ Real-time status updates (in progress)
+- ❌ Barcode scanning integration (in progress)
+
+### Next Steps
+- Complete WebSocket integration
+- Finish barcode scanner implementation
+- Add real-time dashboard updates
+- Implement check-in analytics
+
+---
+
 [2025-05-17 16:12] Invoice System Enhancement
 
 ## ✅ Invoice Management Improvements (Implemented)

@@ -89,6 +89,9 @@ export interface CheckInResponse {
   totalCount: number;
 }
 
+// Import member API types and functions
+import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
+
 export const adminApi = {
   // Search
   searchMembers: async (query: string): Promise<MemberSearchResult[]> => {
@@ -99,6 +102,16 @@ export const adminApi = {
       membershipNumber: member.membership_number,
     }));
   },
+  
+  // Member Management Extensions
+  createMember: memberApi.createMember,
+  updateMember: memberApi.updateMember,
+  deleteMember: memberApi.deleteMember,
+  uploadMemberPhoto: memberApi.uploadMemberPhoto,
+  deleteMemberPhoto: memberApi.deleteMemberPhoto,
+  getMemberCheckIns: memberApi.getMemberCheckIns,
+  getMemberPayments: memberApi.getMemberPayments,
+  
 
   // Check-ins
   getCheckIns: async (filters: CheckInFilters = {}) => {
