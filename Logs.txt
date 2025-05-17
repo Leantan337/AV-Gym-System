@@ -205,12 +205,6 @@
 - ✅ Bulk invoice generation
 - ✅ Stats + filtering support
 
-## 🏗️ In Progress
-
-### 🖥️ Invoice System Frontend
-- 🟡 Frontend components in development
-- 🔜 Pending: UI integration, preview, export
-
 ### 📧 Email Notifications
 - ❌ Not yet implemented
 - Planned for next sprint
