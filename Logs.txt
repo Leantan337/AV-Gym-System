@@ -1,5 +1,37 @@
 # AV-Gym-System Development Logs
 
+[2025-05-17 09:36] Role-Based Access Control Implementation
+
+## ✅ Authentication System (Implemented)
+
+### 👥 User Model & Roles
+- ✅ Created custom User model with AbstractUser extension
+- ✅ Implemented UserRole system with predefined roles (Admin, Manager, Staff, Trainer, Front Desk)
+- ✅ Added role-based properties for easy permission checking
+- ✅ Set up Django admin integration for user management
+
+### 🔒 Backend Security
+- ✅ Implemented permission classes (IsAdminUser, IsManagerOrAdmin, IsSelfOrAdmin)
+- ✅ Created UserViewSet with role-specific filtering
+- ✅ Added JWT authentication with token refresh
+- ✅ Set up API endpoints for user management
+
+### 🖥️ Frontend Integration
+- ✅ Created AuthContext for authentication state management
+- ✅ Implemented role-based route protection
+- ✅ Added LoginPage component with error handling
+- ✅ Created UnauthorizedPage for access denied scenarios
+- ✅ Updated Layout to display role-specific navigation
+
+### 🚀 Next Steps
+- ⬜ Complete database migrations
+- ⬜ Finish membership expiry notifications
+- ⬜ Complete scheduled billing tests
+- ⬜ Test role-based access across all modules
+
+---
+
+
 [2025-05-16 17:55] Enhanced Invoice System Implementation
 
 ## ✅ Complete Invoice System (Fully Implemented)
