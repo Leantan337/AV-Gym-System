@@ -18,10 +18,16 @@ import {
   FormControlLabel,
   AlertTitle,
   Alert,
-  Chip
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import PreviewIcon from '@mui/icons-material/Preview';
+import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
 
 enum NotificationType {
@@ -62,6 +68,15 @@ const NotificationTemplateEditor: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [templateFormData, setTemplateFormData] = useState<Partial<Template>>({});
   const [settingsFormData, setSettingsFormData] = useState<Partial<Settings>>({});
+  const [previewData, setPreviewData] = useState<null | {
+    subject: string;
+    body_text: string;
+    body_html?: string;
+    sample_data: Record<string, string>;
+  }>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(false);
+  const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [previewTab, setPreviewTab] = useState<number>(0);
   
   // Available template variables
   const availableVariables = [
@@ -183,6 +198,43 @@ const NotificationTemplateEditor: React.FC = () => {
       textArea.focus();
       textArea.setSelectionRange(start + variable.length, start + variable.length);
     }, 0);
+  };
+
+  const handlePreviewTemplate = async () => {
+    // Can only preview if we have a valid template ID
+    if (!selectedTemplate?.id) {
+      setError('Please save the template first before previewing');
+      return;
+    }
+
+    setIsPreviewLoading(true);
+    setError(null);
+    
+    try {
+      // Allow the user to customize sample data
+      const customData = {
+        member_name: 'John Doe',
+        plan_name: 'Premium Membership',
+        days_remaining: '15'
+      };
+      
+      const response = await axios.post(
+        `/api/notifications/templates/${selectedTemplate.id}/preview/`,
+        { sample_data: customData }
+      );
+      
+      setPreviewData(response.data);
+      setShowPreview(true);
+    } catch (err) {
+      console.error('Error previewing template:', err);
+      setError('Failed to generate preview. Check template for syntax errors.');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleClosePreview = () => {
+    setShowPreview(false);
   };
 
   const saveTemplate = async () => {
@@ -469,10 +521,10 @@ const NotificationTemplateEditor: React.FC = () => {
           variant="contained"
           startIcon={<PreviewIcon />}
           color="secondary"
-          onClick={() => console.log('Preview not implemented')}
-          disabled={loading || isSaving}
+          onClick={handlePreviewTemplate}
+          disabled={loading || isSaving || isPreviewLoading || !selectedTemplate}
         >
-          Preview
+          {isPreviewLoading ? <CircularProgress size={24} /> : 'Preview'}
         </Button>
         
         <Button
@@ -485,6 +537,78 @@ const NotificationTemplateEditor: React.FC = () => {
           {isSaving ? <CircularProgress size={24} /> : 'Save'}
         </Button>
       </Box>
+      
+      {/* Preview Dialog */}
+      <Dialog
+        open={showPreview}
+        onClose={handleClosePreview}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Email Preview
+          <IconButton
+            aria-label="close"
+            onClick={handleClosePreview}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {previewData ? (
+            <Box>
+              <Box mb={3}>
+                <Typography variant="subtitle1" fontWeight="bold">Subject:</Typography>
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f8f8' }}>
+                  <Typography>{previewData.subject}</Typography>
+                </Paper>
+              </Box>
+              
+              <Tabs value={previewTab} onChange={(e, val) => setPreviewTab(val)}>
+                <Tab label="Text Version" />
+                {previewData.body_html && <Tab label="HTML Version" />}
+              </Tabs>
+              
+              <Box mt={2} p={2} border="1px solid #e0e0e0" borderRadius={1}>
+                {previewTab === 0 && (
+                  <Box sx={{ whiteSpace: 'pre-line' }}>
+                    <Typography>{previewData.body_text}</Typography>
+                  </Box>
+                )}
+                
+                {previewTab === 1 && previewData.body_html && (
+                  <Box
+                    dangerouslySetInnerHTML={{ __html: previewData.body_html }}
+                    sx={{ 
+                      '& a': { color: 'primary.main' },
+                      '& img': { maxWidth: '100%' }
+                    }}
+                  />
+                )}
+              </Box>
+              
+              <Box mt={3}>
+                <Typography variant="subtitle2" color="textSecondary" gutterBottom>Sample Data Used:</Typography>
+                <Box maxHeight="200px" overflow="auto" bgcolor="#f5f5f5" p={2} borderRadius={1}>
+                  <pre>
+                    {JSON.stringify(previewData.sample_data, null, 2)}
+                  </pre>
+                </Box>
+              </Box>
+            </Box>
+          ) : (
+            <Box display="flex" justifyContent="center" p={3}>
+              <CircularProgress />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePreview} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };

@@ -15,6 +15,52 @@ class NotificationTemplateViewSet(viewsets.ModelViewSet):
     queryset = NotificationTemplate.objects.all()
     serializer_class = NotificationTemplateSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
+    @action(detail=True, methods=['post'])
+    def preview(self, request, pk=None):
+        """Preview a notification template with sample data"""
+        template = self.get_object()
+        
+        # Get sample data from request or use defaults
+        sample_data = request.data.get('sample_data', {})
+        
+        # Set default sample data if not provided
+        default_data = {
+            'member_name': sample_data.get('member_name', 'John Doe'),
+            'member_id': sample_data.get('member_id', 'MEM12345'),
+            'current_date': timezone.now().strftime('%Y-%m-%d'),
+            'gym_name': 'AV Gym',
+            'gym_address': '123 Fitness St, Gymville',
+            'gym_phone': '555-123-4567',
+            'gym_email': 'info@avgym.com',
+            'dashboard_url': 'https://avgym.com/dashboard',
+            'plan_name': sample_data.get('plan_name', 'Premium Membership'),
+            'subscription_start_date': sample_data.get('subscription_start_date', 
+                                                     (timezone.now() - timedelta(days=60)).strftime('%Y-%m-%d')),
+            'subscription_end_date': sample_data.get('subscription_end_date',
+                                                   (timezone.now() + timedelta(days=15)).strftime('%Y-%m-%d')),
+            'days_remaining': sample_data.get('days_remaining', '15'),
+            'subscription_id': sample_data.get('subscription_id', 'SUB98765'),
+            'days_before_expiry': sample_data.get('days_before_expiry', '15')
+        }
+        
+        # Render the template with the sample data
+        try:
+            subject = NotificationService.render_template(template.subject, default_data)
+            body_text = NotificationService.render_template(template.body_text, default_data)
+            
+            body_html = None
+            if template.body_html:
+                body_html = NotificationService.render_template(template.body_html, default_data)
+            
+            return Response({
+                'subject': subject,
+                'body_text': body_text,
+                'body_html': body_html,
+                'sample_data': default_data
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class NotificationSettingViewSet(viewsets.ModelViewSet):
