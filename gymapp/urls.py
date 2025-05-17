@@ -62,7 +62,10 @@ urlpatterns = [
     path('api/admin/stats/', admin_dashboard_stats, name='admin-dashboard-stats'),
     path('api/admin/bulk-member-action/', bulk_member_action, name='bulk-member-action'),
     path('api/admin/bulk-invoice-action/', bulk_invoice_action, name='bulk-invoice-action'),
-    path('api/admin/member-stats/', member_stats, name='member-stats'),
+    path('api/member-stats/', member_stats, name='member-stats'),
+    
+    # Notifications API
+    path('api/notifications/', include('notifications.urls')),
 ]
 
 # Serve static and media files in development

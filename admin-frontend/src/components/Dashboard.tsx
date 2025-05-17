@@ -1,10 +1,11 @@
 import React from 'react';
-import { Paper, Typography, Box } from '@mui/material';
+import { Paper, Typography, Box, Grid } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip
 } from 'recharts';
+import ExpiringMemberships from './notifications/ExpiringMemberships';
 
 interface DashboardStats {
   members: {
@@ -162,6 +163,11 @@ export const Dashboard: React.FC = () => {
               Currently in gym: {stats.checkins.current}
             </Typography>
           </Paper>
+        </Box>
+        
+        {/* Expiring Memberships */}
+        <Box sx={{ gridColumn: '1 / -1', mt: 3 }}>
+          <ExpiringMemberships />
         </Box>
       </Box>
     </Box>

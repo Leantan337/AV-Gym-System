@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'checkins',
     'plans',
     'invoices',
+    'notifications.apps.NotificationsConfig',
 ]
 
 # Custom user model
@@ -194,3 +195,16 @@ STATICFILES_FINDERS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Email settings
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.example.com'  # Update for production
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'username@example.com'  # Update for production
+EMAIL_HOST_PASSWORD = 'password'  # Update for production
+DEFAULT_FROM_EMAIL = 'AV Gym <no-reply@avgym.com>'
+
+# For development, use the console backend
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
