@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Report Error{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h2>Report Error</h2>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <p>{{ error }}</p>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="/admin/reports/reportjob/" class="btn btn-secondary">Back to Reports</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

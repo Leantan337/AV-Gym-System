@@ -26,6 +26,7 @@ from members.views import MemberViewSet
 from plans.views import MembershipPlanViewSet, MembershipSubscriptionViewSet
 from checkins.views import CheckInViewSet
 from invoices.views import InvoiceViewSet
+from reports.views import ReportViewSet
 from .views import dashboard_statistics
 from .api import admin_dashboard_stats, bulk_member_action, bulk_invoice_action, member_stats
 from .admin import gym_admin
@@ -38,6 +39,7 @@ router.register(r'plans', MembershipPlanViewSet)
 router.register(r'subscriptions', MembershipSubscriptionViewSet)
 router.register(r'checkins', CheckInViewSet)
 router.register(r'invoices', InvoiceViewSet)
+router.register(r'reports', ReportViewSet)
 
 urlpatterns = [
     # Django Admin
@@ -66,6 +68,10 @@ urlpatterns = [
     
     # Notifications API
     path('api/notifications/', include('notifications.urls')),
+    
+    # Reports API
+    path('api/reports/generate/', ReportViewSet.as_view({'post': 'generate'}), name='report-generate'),
+    path('api/reports/<int:pk>/download/', ReportViewSet.as_view({'get': 'download'}), name='report-download'),
 ]
 
 # Serve static and media files in development

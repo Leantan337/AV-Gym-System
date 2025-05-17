@@ -9,6 +9,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { useAuth, UserRole } from '../contexts/AuthContext';
 
 const drawerWidth = 240;
@@ -48,6 +50,18 @@ const menuItems = [
     icon: <AdminPanelSettingsIcon />,
     path: '/admin',
     roles: [UserRole.ADMIN]
+  },
+  {
+    text: 'Notifications',
+    icon: <NotificationsActiveIcon />,
+    path: '/notifications',
+    roles: [UserRole.ADMIN, UserRole.MANAGER]
+  },
+  {
+    text: 'Reports',
+    icon: <AssessmentIcon />,
+    path: '/reports',
+    roles: [UserRole.ADMIN, UserRole.MANAGER]
   }
 ];
 

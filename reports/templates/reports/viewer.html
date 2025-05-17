@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Report Viewer - {{ report.report_type_display }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h2>{{ report.report_type_display }}</h2>
+                    <p class="text-muted">Generated: {{ created_at }}</p>
+                    {% if completed_at %}
+                    <p class="text-muted">Completed: {{ completed_at }}</p>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if report.status == 'COMPLETED' %}
+                        <div class="alert alert-success">
+                            <p>Report was successfully generated.</p>
+                            <a href="{% url 'report-download' report.id %}" class="btn btn-primary">
+                                Download Report ({{ report.export_format_display }})
+                            </a>
+                        </div>
+                    {% elif report.status == 'PROCESSING' %}
+                        <div class="alert alert-info">
+                            <p>Report is currently being generated. Please check back later.</p>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-danger">
+                            <p>Report generation failed.</p>
+                            {% if report.error_message %}
+                                <p><strong>Error:</strong> {{ report.error_message }}</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <a href="/admin/reports/reportjob/" class="btn btn-secondary">Back to Reports</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

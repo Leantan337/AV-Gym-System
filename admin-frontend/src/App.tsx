@@ -10,6 +10,7 @@ import { Dashboard } from './components/Dashboard';
 import { Members } from './components/Members';
 import { CheckInPage } from './components/checkins/CheckInPage';
 import NotificationPage from './components/notifications/NotificationPage';
+import ReportPage from './components/reports/ReportPage';
 import LoginPage from './components/auth/LoginPage';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import RoleAuthorization from './components/auth/RoleAuthorization';
@@ -102,6 +103,20 @@ function App() {
                   <WebSocketProvider>
                     <Layout>
                       <NotificationPage />
+                    </Layout>
+                  </WebSocketProvider>
+                </RoleAuthorization>
+              } />
+              
+              {/* Reports - accessible by admin and manager only */}
+              <Route path="/reports" element={
+                <RoleAuthorization allowedRoles={[
+                  UserRole.ADMIN,
+                  UserRole.MANAGER
+                ]}>
+                  <WebSocketProvider>
+                    <Layout>
+                      <ReportPage />
                     </Layout>
                   </WebSocketProvider>
                 </RoleAuthorization>
