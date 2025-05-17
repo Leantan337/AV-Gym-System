@@ -32,6 +32,8 @@ import PreviewIcon from '@mui/icons-material/Preview';
 import TestIcon from '@mui/icons-material/BugReport';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
+import GridItem from '../common/GridItem';
+import { ExtendedGridProps } from '../../types/mui.types';
 
 interface Template {
   id: string;
@@ -215,7 +217,7 @@ const TemplateTestingTool: React.FC = () => {
       </Box>
       
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <GridItem item xs={12} md={6}>
           <FormControl fullWidth>
             <InputLabel>Template</InputLabel>
             <Select
@@ -230,10 +232,10 @@ const TemplateTestingTool: React.FC = () => {
               ))}
             </Select>
           </FormControl>
-        </Grid>
+        </GridItem>
         
         {testMode === 'send' && (
-          <Grid item xs={12} md={6}>
+          <GridItem item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Test Recipient</InputLabel>
               <Select
@@ -248,7 +250,7 @@ const TemplateTestingTool: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
-          </Grid>
+          </GridItem>
         )}
       </Grid>
       
@@ -260,7 +262,7 @@ const TemplateTestingTool: React.FC = () => {
           <AccordionDetails>
             <Grid container spacing={2}>
               {Object.entries(testData).map(([key, value]) => (
-                <Grid item xs={12} sm={6} md={4} key={key}>
+                <GridItem item xs={12} sm={6} md={4} key={key}>
                   <TextField
                     fullWidth
                     label={key}
@@ -269,10 +271,10 @@ const TemplateTestingTool: React.FC = () => {
                     variant="outlined"
                     margin="normal"
                   />
-                </Grid>
+                </GridItem>
               ))}
               
-              <Grid item xs={12}>
+              <GridItem item xs={12}>
                 <Box display="flex" justifyContent="flex-end">
                   <Button 
                     onClick={handleResetTestData}
@@ -282,7 +284,7 @@ const TemplateTestingTool: React.FC = () => {
                     Reset to Default Data
                   </Button>
                 </Box>
-              </Grid>
+              </GridItem>
             </Grid>
           </AccordionDetails>
         </Accordion>

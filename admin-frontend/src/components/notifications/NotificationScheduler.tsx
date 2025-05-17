@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { NotificationType, NotificationSchedule, NotificationFormData } from '../../types/notification.types';
 import {
   Box,
   Paper,
@@ -41,21 +42,10 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format, parseISO, addDays } from 'date-fns';
+import { ExtendedGridProps } from '../../types/mui.types';
+import GridItem from '../common/GridItem';
 
-interface NotificationType {
-  value: string;
-  label: string;
-  description: string;
-}
-
-interface NotificationSchedule {
-  id: string;
-  notification_type: string;
-  days_before_event: number;
-  is_active: boolean;
-  last_run: string | null;
-  next_run: string | null;
-}
+// Using imported types from notification.types.ts
 
 const notificationTypes: NotificationType[] = [
   { 
@@ -466,13 +456,15 @@ const NotificationScheduler: React.FC = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <GridItem item xs={6}>
               <FormControl fullWidth>
                 <InputLabel>Notification Type</InputLabel>
                 <Select
-                  value={formData.notification_type || 'MEMBERSHIP_EXPIRY'}
-                  onChange={(e) => handleFormChange('notification_type', e.target.value)}
-                  label="Notification Type"
+                  value={formData.notification_type}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    notification_type: e.target.value,
+                  })}
                 >
                   {notificationTypes.map((type) => (
                     <MenuItem key={type.value} value={type.value}>
@@ -481,33 +473,36 @@ const NotificationScheduler: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
-              
               <Typography variant="caption" color="text.secondary" display="block" mt={1}>
                 {notificationTypes.find(t => t.value === formData.notification_type)?.description}
               </Typography>
-            </Grid>
+            </GridItem>
             
-            <Grid item xs={12}>
+            <GridItem item xs={6}>
               <TextField
                 fullWidth
                 label="Days Before Event"
                 type="number"
                 value={formData.days_before_event || 7}
-                onChange={(e) => handleFormChange('days_before_event', parseInt(e.target.value, 10))}
-                InputProps={{
-                  inputProps: { min: 1, max: 90 }
+                onChange={(e) => {
+                  setFormData({
+                    ...formData,
+                    days_before_event: parseInt(e.target.value),
+                  });
                 }}
                 helperText="Number of days before the event to send the notification"
               />
-            </Grid>
+            </GridItem>
             
-            <Grid item xs={12}>
+            <GridItem item xs={6}>
               <FormControlLabel
                 control={
                   <Switch
-                    checked={formData.is_active ?? true}
-                    onChange={(e) => handleFormChange('is_active', e.target.checked)}
-                    color="primary"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      is_active: e.target.checked,
+                    })}
                   />
                 }
                 label="Active"
@@ -515,7 +510,7 @@ const NotificationScheduler: React.FC = () => {
               <Typography variant="caption" color="text.secondary" display="block">
                 Inactive schedules will not send notifications
               </Typography>
-            </Grid>
+            </GridItem>
           </Grid>
         </DialogContent>
         <DialogActions>

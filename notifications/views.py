@@ -16,6 +16,141 @@ class NotificationTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationTemplateSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    @action(detail=False, methods=['post'])
+    def bulk_send(self, request):
+        """Send notifications to multiple members at once"""
+        template_id = request.data.get('template_id')
+        member_ids = request.data.get('member_ids', [])
+        send_email = request.data.get('send_email', True)
+        show_on_dashboard = request.data.get('show_on_dashboard', True)
+        custom_subject = request.data.get('custom_subject')
+        custom_message = request.data.get('custom_message')
+        
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not member_ids or not isinstance(member_ids, list):
+            return Response({'error': 'At least one member ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            template = NotificationTemplate.objects.get(id=template_id)
+            
+            # Get the members
+            from members.models import Member
+            members = Member.objects.filter(id__in=member_ids)
+            
+            if not members.exists():
+                return Response({'error': 'No valid members found'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Process each member
+            notification_service = NotificationService()
+            results = {
+                'success': [],
+                'failed': []
+            }
+            
+            for member in members:
+                try:
+                    # Prepare member data
+                    member_data = {
+                        'member_name': f'{member.first_name} {member.last_name}',
+                        'member_id': str(member.id),
+                        'current_date': timezone.now().strftime('%Y-%m-%d'),
+                        'gym_name': 'AV Gym',
+                        'gym_address': '123 Fitness St, Gymville',
+                        'gym_phone': '555-123-4567',
+                        'gym_email': 'info@avgym.com',
+                        'dashboard_url': 'https://avgym.com/dashboard',
+                    }
+                    
+                    # Get active membership if any
+                    from plans.models import MembershipSubscription
+                    subscription = MembershipSubscription.objects.filter(
+                        member=member, 
+                        is_active=True
+                    ).first()
+                    
+                    if subscription:
+                        member_data.update({
+                            'plan_name': subscription.plan.name,
+                            'subscription_start_date': subscription.start_date.strftime('%Y-%m-%d'),
+                            'subscription_end_date': subscription.end_date.strftime('%Y-%m-%d') if subscription.end_date else 'N/A',
+                            'subscription_id': str(subscription.id),
+                        })
+                        
+                        # Calculate days remaining if end_date exists
+                        if subscription.end_date:
+                            days_remaining = (subscription.end_date - timezone.now().date()).days
+                            member_data['days_remaining'] = str(max(0, days_remaining))
+                            member_data['days_before_expiry'] = str(max(0, days_remaining))
+                    
+                    # Use custom subject/message if provided
+                    subject = custom_subject or template.subject
+                    body_text = custom_message or template.body_text
+                    body_html = template.body_html if not custom_message else None
+                    
+                    # Render the templates with member data
+                    rendered_subject = notification_service.render_template(subject, member_data)
+                    rendered_body_text = notification_service.render_template(body_text, member_data)
+                    rendered_body_html = notification_service.render_template(body_html, member_data) if body_html else None
+                    
+                    # Create notification log entry
+                    notification_log = NotificationLog.objects.create(
+                        notification_type=template.notification_type,
+                        member=member,
+                        subscription=subscription,
+                        subject=rendered_subject,
+                        message=rendered_body_text,
+                        is_email_sent=False
+                    )
+                    
+                    # Send email if requested
+                    if send_email and member.email:
+                        from django.core.mail import EmailMultiAlternatives
+                        from django.conf import settings
+                        
+                        email = EmailMultiAlternatives(
+                            subject=rendered_subject,
+                            body=rendered_body_text,
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            to=[member.email]
+                        )
+                        
+                        if rendered_body_html:
+                            email.attach_alternative(rendered_body_html, "text/html")
+                            
+                        email.send()
+                        notification_log.is_email_sent = True
+                        notification_log.save()
+                    
+                    results['success'].append({
+                        'member_id': str(member.id),
+                        'email': member.email,
+                        'name': f'{member.first_name} {member.last_name}'
+                    })
+                    
+                except Exception as e:
+                    results['failed'].append({
+                        'member_id': str(member.id),
+                        'email': member.email if hasattr(member, 'email') else 'Unknown',
+                        'name': f'{member.first_name} {member.last_name}' if hasattr(member, 'first_name') else 'Unknown',
+                        'error': str(e)
+                    })
+            
+            # Return the results
+            return Response({
+                'status': 'success',
+                'total_members': len(member_ids),
+                'successful': len(results['success']),
+                'failed': len(results['failed']),
+                'results': results
+            })
+            
+        except NotificationTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
         """Preview a notification template with sample data"""
@@ -99,6 +234,93 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
         member_id = self.request.query_params.get('member', None)
         if member_id:
             queryset = queryset.filter(member_id=member_id)
+            
+        # Filter by time range
+        time_range = self.request.query_params.get('time_range', None)
+        if time_range:
+            now = timezone.now()
+            if time_range == 'week':
+                start_date = now - timedelta(days=7)
+            elif time_range == 'month':
+                start_date = now - timedelta(days=30)
+            elif time_range == 'quarter':
+                start_date = now - timedelta(days=90)
+            else:
+                start_date = now - timedelta(days=7)  # Default to week
+                
+            queryset = queryset.filter(sent_at__gte=start_date)
+            
+        return queryset
+        
+    @action(detail=False, methods=['get'])
+    def metrics(self, request):
+        """Get notification metrics"""
+        # Get time-filtered queryset
+        queryset = self.get_queryset()
+        
+        # Calculate metrics
+        total_notifications = queryset.count()
+        email_sent_count = queryset.filter(is_email_sent=True).count()
+        dashboard_count = total_notifications  # Assuming all are shown on dashboard
+        
+        # Count by notification type
+        from django.db.models import Count
+        type_counts = queryset.values('notification_type').annotate(count=Count('id'))
+        notification_types = {item['notification_type']: item['count'] for item in type_counts}
+        
+        # Count unique members
+        member_count = queryset.values('member').distinct().count()
+        
+        # Generate metrics by type
+        type_metrics = []
+        for notification_type, count in notification_types.items():
+            type_queryset = queryset.filter(notification_type=notification_type)
+            email_count = type_queryset.filter(is_email_sent=True).count()
+            
+            type_metrics.append({
+                'notification_type': notification_type,
+                'count': count,
+                'email_sent_count': email_count,
+                'dashboard_count': count
+            })
+        
+        # Generate daily metrics
+        from django.db.models.functions import TruncDate
+        daily_counts = queryset.annotate(date=TruncDate('sent_at')).values('date').annotate(
+            count=Count('id'),
+            email_count=Count('id', filter=models.Q(is_email_sent=True))
+        ).order_by('date')
+        
+        daily_metrics = [
+            {
+                'date': item['date'].isoformat(),
+                'count': item['count'],
+                'email_count': item['email_count'],
+                'dashboard_count': item['count']
+            } for item in daily_counts
+        ]
+        
+        # Calculate percentages
+        delivery_percentage = (email_sent_count / total_notifications * 100) if total_notifications > 0 else 0
+        
+        # In a real system, you would track opens. For this demo, we'll calculate a mock open rate
+        open_rate_percentage = 75.0  # Mock value
+        
+        summary = {
+            'total_notifications': total_notifications,
+            'email_sent_count': email_sent_count,
+            'dashboard_count': dashboard_count,
+            'total_members_notified': member_count,
+            'notification_types': notification_types,
+            'delivery_percentage': round(delivery_percentage, 1),
+            'open_rate_percentage': open_rate_percentage
+        }
+        
+        return Response({
+            'summary': summary,
+            'type_metrics': type_metrics,
+            'daily_metrics': daily_metrics
+        })
         
         # Filter by notification type
         notification_type = self.request.query_params.get('type', None)

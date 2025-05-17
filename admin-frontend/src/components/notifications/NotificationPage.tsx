@@ -11,6 +11,8 @@ import NotificationTemplateEditor from './NotificationTemplateEditor';
 import NotificationLogs from './NotificationLogs';
 import TemplateTestingTool from './TemplateTestingTool';
 import NotificationScheduler from './NotificationScheduler';
+import BulkNotifications from './BulkNotifications';
+import NotificationMetrics from './NotificationMetrics';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -73,6 +75,8 @@ const NotificationPage: React.FC = () => {
           <Tab label="Notification Logs" {...a11yProps(1)} />
           <Tab label="Template Testing" {...a11yProps(2)} />
           <Tab label="Schedule Manager" {...a11yProps(3)} />
+          <Tab label="Bulk Notifications" {...a11yProps(4)} />
+          <Tab label="Metrics Dashboard" {...a11yProps(5)} />
         </Tabs>
       </Box>
       
@@ -90,6 +94,14 @@ const NotificationPage: React.FC = () => {
       
       <TabPanel value={value} index={3}>
         <NotificationScheduler />
+      </TabPanel>
+      
+      <TabPanel value={value} index={4}>
+        <BulkNotifications />
+      </TabPanel>
+      
+      <TabPanel value={value} index={5}>
+        <NotificationMetrics />
       </TabPanel>
     </Container>
   );

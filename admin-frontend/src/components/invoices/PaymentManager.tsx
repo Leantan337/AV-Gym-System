@@ -454,9 +454,9 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
             color="error"
             onClick={handleRefundPayment}
             disabled={
-              !refundAmount ||
+              Boolean(!refundAmount ||
               parseFloat(refundAmount) <= 0 ||
-              (selectedPayment && parseFloat(refundAmount) > selectedPayment.amount)
+              (selectedPayment && parseFloat(refundAmount) > selectedPayment.amount))
             }
             startIcon={<RotateCcw />}
           >
