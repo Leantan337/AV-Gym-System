@@ -22,9 +22,8 @@ import { Plus as PlusIcon, Trash2 as TrashIcon, Eye as PreviewIcon } from 'lucid
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceApi } from '../../services/invoiceApi';
 import { CreateInvoiceData, InvoiceItem, InvoiceTemplate } from '../../types/invoice';
-import { MemberSearch } from '../members/MemberSearch';
-import { DatePicker } from '@mui/x-date-pickers';
-import dayjs from 'dayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { format } from 'date-fns';
 
 interface InvoiceGeneratorProps {
   onSuccess?: () => void;
@@ -92,17 +91,29 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onSuccess })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMemberId || !selectedTemplateId || !dueDate) return;
+    const handleCreateInvoice = () => {
+      if (!selectedMemberId || !selectedTemplateId || !dueDate) {
+        return;
+      }
 
-    const invoiceData: CreateInvoiceData = {
-      memberId: selectedMemberId,
-      templateId: selectedTemplateId,
-      dueDate: dueDate.toISOString(),
-      items,
-      notes: notes || undefined,
+      const invoiceData: CreateInvoiceData = {
+        memberId: selectedMemberId,
+        items: items.filter((item): item is Required<Omit<InvoiceItem, 'total'>> => 
+          Boolean(item.description && item.quantity && item.unitPrice)
+        ),
+        dueDate: format(dueDate, 'yyyy-MM-dd'),
+        notes: notes.trim() || undefined,
+        templateId: selectedTemplateId,
+      };
+
+      createInvoiceMutation.mutate(invoiceData, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['invoices'] });
+          onSuccess?.();
+        },
+      });
     };
-
-    createInvoiceMutation.mutate(invoiceData);
+    handleCreateInvoice();
   };
 
   return (
@@ -114,11 +125,13 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onSuccess })
 
         <Stack spacing={3}>
           {/* Member Selection */}
-          <MemberSearch
+          <TextField
+            fullWidth
+            label="Member ID"
             value={selectedMemberId}
-            onChange={(id) => setSelectedMemberId(id)}
-            label="Select Member"
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedMemberId(e.target.value)}
             required
+            margin="normal"
           />
 
           {/* Template Selection */}
@@ -144,7 +157,6 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onSuccess })
             onChange={(newValue) => setDueDate(newValue)}
             slotProps={{
               textField: {
-                required: true,
                 fullWidth: true,
               },
             }}

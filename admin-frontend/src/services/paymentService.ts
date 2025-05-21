@@ -1,4 +1,7 @@
 import { api } from './api';
+import type { AxiosInstance, AxiosResponse, AxiosRequestConfig } from 'axios';
+
+const typedAdminApi = api;
 
 export interface PaymentMethod {
   id: string;
@@ -38,7 +41,7 @@ export interface PaymentGateway {
 export const paymentService = {
   // Payment Methods
   getMemberPaymentMethods: async (memberId: string): Promise<PaymentMethod[]> => {
-    const response = await api.get<PaymentMethod[]>(`/members/${memberId}/payment-methods/`);
+    const response = await typedAdminApi.get<PaymentMethod[]>(`/members/${memberId}/payment-methods/`);
     return response.data;
   },
 
@@ -49,21 +52,21 @@ export const paymentService = {
     token: string;
     isDefault?: boolean;
   }): Promise<PaymentMethod> => {
-    const response = await api.post<PaymentMethod>('/payment-methods/', data);
+    const response = await typedAdminApi.post<PaymentMethod>('/payment-methods/', data);
     return response.data;
   },
 
   updatePaymentMethod: async (id: string, data: Partial<PaymentMethod>): Promise<PaymentMethod> => {
-    const response = await api.patch<PaymentMethod>(`/payment-methods/${id}/`, data);
+    const response = await typedAdminApi.patch<PaymentMethod>(`/payment-methods/${id}/`, data);
     return response.data;
   },
 
   deletePaymentMethod: async (id: string): Promise<void> => {
-    await api.delete(`/payment-methods/${id}/`);
+    await typedAdminApi.delete(`/payment-methods/${id}/`);
   },
 
   setDefaultPaymentMethod: async (id: string): Promise<PaymentMethod> => {
-    const response = await api.post<PaymentMethod>(`/payment-methods/${id}/set-default/`, {});
+    const response = await typedAdminApi.post<PaymentMethod>(`/payment-methods/${id}/set-default/`, {});
     return response.data;
   },
 
@@ -82,17 +85,17 @@ export const paymentService = {
     if (filters?.memberId) queryParams.append('memberId', filters.memberId);
     if (filters?.invoiceId) queryParams.append('invoiceId', filters.invoiceId);
     
-    const response = await api.get<Payment[]>(`/payments/?${queryParams.toString()}`);
+    const response = await typedAdminApi.get<Payment[]>(`/payments/?${queryParams.toString()}`);
     return response.data;
   },
 
   getPayment: async (id: string): Promise<Payment> => {
-    const response = await api.get<Payment>(`/payments/${id}/`);
+    const response = await typedAdminApi.get<Payment>(`/payments/${id}/`);
     return response.data;
   },
 
   getInvoicePayments: async (invoiceId: string): Promise<Payment[]> => {
-    const response = await api.get<Payment[]>(`/invoices/${invoiceId}/payments/`);
+    const response = await typedAdminApi.get<Payment[]>(`/invoices/${invoiceId}/payments/`);
     return response.data;
   },
 
@@ -102,7 +105,7 @@ export const paymentService = {
     amount: number;
     notes?: string;
   }): Promise<Payment> => {
-    const response = await api.post<Payment>('/payments/process/', data);
+    const response = await typedAdminApi.post<Payment>('/payments/process/', data);
     return response.data;
   },
 
@@ -113,7 +116,7 @@ export const paymentService = {
     paymentDate: string;
     notes?: string;
   }): Promise<Payment> => {
-    const response = await api.post<Payment>('/payments/manual/', data);
+    const response = await typedAdminApi.post<Payment>('/payments/manual/', data);
     return response.data;
   },
 
@@ -121,33 +124,33 @@ export const paymentService = {
     amount?: number;
     reason?: string;
   }): Promise<Payment> => {
-    const response = await api.post<Payment>(`/payments/${id}/refund/`, data);
+    const response = await typedAdminApi.post<Payment>(`/payments/${id}/refund/`, data);
     return response.data;
   },
 
   // Payment Gateways
   getPaymentGateways: async (): Promise<PaymentGateway[]> => {
-    const response = await api.get<PaymentGateway[]>('/payment-gateways/');
+    const response = await typedAdminApi.get<PaymentGateway[]>('/payment-gateways/');
     return response.data;
   },
 
   updatePaymentGateway: async (id: string, data: Partial<PaymentGateway>): Promise<PaymentGateway> => {
-    const response = await api.patch<PaymentGateway>(`/payment-gateways/${id}/`, data);
+    const response = await typedAdminApi.patch<PaymentGateway>(`/payment-gateways/${id}/`, data);
     return response.data;
   },
 
   activatePaymentGateway: async (id: string): Promise<PaymentGateway> => {
-    const response = await api.post<PaymentGateway>(`/payment-gateways/${id}/activate/`, {});
+    const response = await typedAdminApi.post<PaymentGateway>(`/payment-gateways/${id}/activate/`, {});
     return response.data;
   },
 
   deactivatePaymentGateway: async (id: string): Promise<PaymentGateway> => {
-    const response = await api.post<PaymentGateway>(`/payment-gateways/${id}/deactivate/`, {});
+    const response = await typedAdminApi.post<PaymentGateway>(`/payment-gateways/${id}/deactivate/`, {});
     return response.data;
   },
 
   testPaymentGateway: async (id: string): Promise<{ success: boolean; message: string }> => {
-    const response = await api.post<{ success: boolean; message: string }>(`/payment-gateways/${id}/test/`, {});
+    const response = await typedAdminApi.post<{ success: boolean; message: string }>(`/payment-gateways/${id}/test/`, {});
     return response.data;
   },
 
@@ -160,7 +163,7 @@ export const paymentService = {
     paymentsByDay: Array<{ date: string; amount: number }>;
     paymentMethodBreakdown: Array<{ method: string; count: number; amount: number }>;
   }> => {
-    const response = await api.get<any>(`/payments/analytics/?period=${period}`);
+    const response = await typedAdminApi.get<any>(`/payments/analytics/?period=${period}`);
     return response.data;
   },
 };

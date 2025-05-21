@@ -97,10 +97,11 @@ export const CheckInHistory: React.FC<CheckInHistoryProps> = ({
       });
     };
 
-    wsService.subscribe('check_in_update', handleCheckInUpdate);
-
+    // Store the unsubscribe function
+    const unsubscribe = wsService.subscribe('check_in_update', handleCheckInUpdate);
+    
     return () => {
-      wsService.unsubscribe('check_in_update', handleCheckInUpdate);
+      unsubscribe();
     };
   }, [queryClient]);
 

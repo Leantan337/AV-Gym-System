@@ -1,4 +1,21 @@
-import { api } from './api';
+import axios from 'axios';
+
+// Create axios instance with base URL and auth headers
+const api = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 import {
   Invoice,
   InvoiceTemplate,
@@ -54,6 +71,19 @@ export const invoiceApi = {
     return response.data;
   },
 
+  // Alias for getInvoice for backward compatibility
+  getInvoiceById: async (id: string) => {
+    return invoiceApi.getInvoice(id);
+  },
+  
+  // Download invoice as PDF
+  downloadInvoicePdf: async (id: string) => {
+    const response = await api.get(`/invoices/${id}/pdf/`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
   createInvoice: async (data: CreateInvoiceData) => {
     const response = await api.post<Invoice>('/invoices/', data);
     return response.data;
@@ -91,7 +121,25 @@ export const invoiceApi = {
     return response.data;
   },
 
-  // Statistics
+  // Email invoice
+  sendInvoiceEmail: async (invoiceId: string, email?: string) => {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/invoices/${invoiceId}/send/`,
+      { recipientEmail: email }
+    );
+    return response.data;
+  },
+
+  // Mark invoice as paid
+  markInvoiceAsPaid: async (invoiceId: string) => {
+    const response = await api.patch<Invoice>(`/invoices/${invoiceId}/`, {
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+    });
+    return response.data;
+  },
+
+  // Get invoice statistics
   getInvoiceStats: async (dateRange?: InvoiceFilters['dateRange']) => {
     const params = new URLSearchParams();
     if (dateRange) params.append('dateRange', dateRange);
@@ -101,8 +149,9 @@ export const invoiceApi = {
       totalAmount: number;
       paidAmount: number;
       pendingAmount: number;
-      averageAmount: number;
-      paymentRate: number;
+      overdueAmount: number;
+      byStatus: Record<Invoice['status'], number>;
+      byMonth: Array<{ month: string; amount: number; count: number }>;
     }>(`/invoices/stats/?${params.toString()}`);
     return response.data;
   },

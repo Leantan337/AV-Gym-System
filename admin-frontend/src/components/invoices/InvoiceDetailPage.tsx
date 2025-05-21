@@ -39,10 +39,42 @@ import {
   X,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format as formatDateFns } from 'date-fns';
 import { useNavigate, useParams } from 'react-router-dom';
 import { invoiceApi } from '../../services/invoiceApi';
 import { Invoice, Payment, PaymentMethod } from '../../types/invoice';
+
+// Format currency helper function
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
+// Extend the Payment interface to include additional fields
+interface ExtendedPayment extends Payment {
+  date?: string;
+  reference?: string;
+}
+
+// Extend the Invoice interface to include additional fields
+interface ExtendedInvoice extends Invoice {
+  discount?: number;
+  taxRate?: number;
+  payments?: ExtendedPayment[];
+  member: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    address: string;
+    membershipNumber?: string; // Make it optional
+  };
+}
+
+// Alias for backward compatibility
+interface InvoiceWithPayments extends ExtendedInvoice {}
 
 // Payment status colors
 const statusColors: Record<Invoice['status'], string> = {
@@ -50,6 +82,20 @@ const statusColors: Record<Invoice['status'], string> = {
   pending: '#1976d2',    // blue
   paid: '#2e7d32',       // green
   cancelled: '#d32f2f',  // red
+};
+
+// Get status color
+const getStatusColor = (status: Invoice['status']) => {
+  switch (status) {
+    case 'paid':
+      return 'success';
+    case 'pending':
+      return 'warning';
+    case 'cancelled':
+      return 'error';
+    default:
+      return 'default';
+  }
 };
 
 // Payment method icons
@@ -133,7 +179,7 @@ const EmailDialog: React.FC<EmailDialogProps> = ({
   );
 };
 
-export const InvoiceDetailPage: React.FC = () => {
+const InvoiceDetailPage: React.FC = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -141,25 +187,58 @@ export const InvoiceDetailPage: React.FC = () => {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   // Fetch invoice details
-  const { data: invoice, isLoading, error } = useQuery({
+  const { data: invoice, isLoading, error } = useQuery<InvoiceWithPayments>({
     queryKey: ['invoice', invoiceId],
-    queryFn: () => invoiceApi.getInvoiceById(invoiceId as string),
+    queryFn: () => invoiceApi.getInvoiceById(invoiceId as string) as Promise<InvoiceWithPayments>,
     enabled: !!invoiceId,
   });
 
+  // Calculate paid amount
+  const paidAmount = invoice?.payments?.reduce(
+    (sum: number, payment: Payment) => sum + (payment?.amount || 0), 
+    0
+  ) || 0;
+  const balanceDue = (invoice?.total || 0) - paidAmount;
+
+  // Calculate total
+  const calculateTotal = (items: Invoice['items'] = []): number => {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((sum, item) => {
+      const quantity = Number(item?.quantity) || 0;
+      const unitPrice = Number(item?.unitPrice) || 0;
+      return sum + (quantity * unitPrice);
+    }, 0);
+  };
+
+  // Calculate tax
+  const calculateTax = (subtotal: number, taxRate: number = 0): number => {
+    const rate = Number(taxRate) || 0;
+    if (rate <= 0) return 0;
+    return subtotal * (rate / 100);
+  };
+
   // Download PDF mutation
   const downloadPdfMutation = useMutation({
-    mutationFn: invoiceApi.downloadInvoicePdf,
-    onSuccess: (blob) => {
-      // Create a download link and trigger download
+    mutationFn: (id: string) => invoiceApi.downloadInvoicePdf(id),
+    onSuccess: (data) => {
+      // Create a blob from the PDF data
+      const blob = new Blob([data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link and trigger download
       const a = document.createElement('a');
-      a.style.display = 'none';
       a.href = url;
-      a.download = `invoice-${invoice?.number || invoiceId}.pdf`;
+      a.download = `invoice-${invoice?.number || 'unknown'}.pdf`;
       document.body.appendChild(a);
       a.click();
+      
+      // Clean up
       window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+    onError: (error) => {
+      console.error('Error downloading PDF:', error);
+      // Show error message to user
     },
   });
 
@@ -176,10 +255,15 @@ export const InvoiceDetailPage: React.FC = () => {
 
   // Mark as paid mutation
   const markAsPaidMutation = useMutation({
-    mutationFn: invoiceApi.markInvoiceAsPaid,
+    mutationFn: (id: string) => invoiceApi.markInvoiceAsPaid(id),
     onSuccess: () => {
+      // Show success message
+      // Refresh the invoice data
       queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] }); // Refresh invoice list
+    },
+    onError: (error) => {
+      console.error('Error marking as paid:', error);
+      // Show error message to user
     },
   });
 
@@ -187,8 +271,8 @@ export const InvoiceDetailPage: React.FC = () => {
     navigate('/invoices');
   };
 
-  const handleDownloadPdf = () => {
-    if (invoice) {
+  const handleDownloadPdf = (): void => {
+    if (invoice?.id) {
       downloadPdfMutation.mutate(invoice.id);
     }
   };
@@ -197,211 +281,257 @@ export const InvoiceDetailPage: React.FC = () => {
     window.print();
   };
 
-  const handleSendEmail = (email: string) => {
+  const handleSendEmail = () => {
     if (invoice) {
-      sendEmailMutation.mutate({ invoiceId: invoice.id, email });
+      setEmailDialogOpen(true);
     }
   };
 
-  const handleMarkAsPaid = () => {
-    if (invoice && invoice.status === 'pending') {
+  const handleMarkAsPaid = (): void => {
+    if (invoice?.status === 'pending' && invoice?.id) {
       markAsPaidMutation.mutate(invoice.id);
     }
   };
 
+  // Handle dialog close
+  const handleDialogClose = (): void => {
+    setEmailDialogOpen(false);
+  };
+
+  // Format date
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'N/A';
+    try {
+      return formatDateFns(new Date(dateString), 'MMM d, yyyy');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
+  };
+
+  // Format payment method
+  const formatPaymentMethod = (method: PaymentMethod): string => {
+    if (!method) return 'N/A';
+    return method
+      .replace('_', ' ')
+      .replace(/^\w/, (c) => c.toUpperCase());
+  };
+
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  if (error || !invoice) {
+  if (error) {
     return (
-      <Box sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error ? `Error loading invoice: ${(error as Error).message}` : 'Invoice not found'}
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          {error instanceof Error ? error.message : 'An error occurred while loading the invoice'}
         </Alert>
-        <Button startIcon={<ArrowLeft />} onClick={handleBackClick}>
+        <Button startIcon={<ArrowLeft />} onClick={handleBackClick} sx={{ mt: 2 }}>
           Back to Invoices
         </Button>
       </Box>
     );
   }
 
-  return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 2, md: 3 } }}>
-      {/* Header with actions */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', mb: 3, gap: 2 }}>
-        <Button startIcon={<ArrowLeft />} onClick={handleBackClick}>
-          Back to Invoices
-        </Button>
+  if (!invoice) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">Invoice not found</Alert>
+      </Box>
+    );
+  }
 
-        <Stack direction="row" spacing={1}>
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <IconButton onClick={handleBackClick}>
+            <ArrowLeft />
+          </IconButton>
+          <Typography variant="h4">Invoice Details</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
             variant="outlined"
-            startIcon={<FileDown />}
-            onClick={handleDownloadPdf}
-            disabled={downloadPdfMutation.isPending}
-          >
-            {downloadPdfMutation.isPending ? 'Downloading...' : 'Download PDF'}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Printer />}
+            startIcon={<Printer size={18} />}
             onClick={handlePrint}
           >
             Print
           </Button>
           <Button
             variant="outlined"
-            startIcon={<Mail />}
-            onClick={() => setEmailDialogOpen(true)}
+            startIcon={<FileDown size={18} />}
+            onClick={handleDownloadPdf}
+            disabled={downloadPdfMutation.isPending}
+          >
+            {downloadPdfMutation.isPending ? 'Downloading...' : 'Download PDF'}
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Mail size={18} />}
+            onClick={handleSendEmail}
             disabled={sendEmailMutation.isPending}
           >
-            Email
+            {sendEmailMutation.isPending ? 'Sending...' : 'Send Email'}
           </Button>
           {invoice.status === 'pending' && (
             <Button
               variant="contained"
               color="success"
-              startIcon={<CheckCircle />}
+              startIcon={<CheckCircle size={18} />}
               onClick={handleMarkAsPaid}
               disabled={markAsPaidMutation.isPending}
             >
-              Mark as Paid
+              {markAsPaidMutation.isPending ? 'Marking as Paid...' : 'Mark as Paid'}
             </Button>
           )}
-        </Stack>
+        </Box>
       </Box>
 
       {/* Invoice Details */}
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Grid container spacing={3}>
-          {/* Invoice header */}
-          <Grid item xs={12} display="flex" justifyContent="space-between" flexWrap="wrap">
-            <Box>
-              <Typography variant="h5">Invoice #{invoice.number}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {format(new Date(invoice.createdAt), 'MMMM d, yyyy')}
-              </Typography>
-            </Box>
-            <Chip
-              label={invoice.status}
-              sx={{
-                bgcolor: `${statusColors[invoice.status]}16`,
-                color: statusColors[invoice.status],
-                fontWeight: 'bold',
-                borderColor: `${statusColors[invoice.status]}32`,
-                border: '1px solid',
-              }}
-            />
-          </Grid>
-
-          {/* Business and client info */}
-          <Grid item xs={12} md={6}>
-            <Typography variant="subtitle2" gutterBottom>From</Typography>
-            <Typography variant="body1">AV Gym</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+          <Box>
+            <Typography variant="h5">Invoice #{invoice.number}</Typography>
             <Typography variant="body2" color="text.secondary">
-              123 Fitness Street<br />
-              Workout City, WO 12345<br />
+              {formatDate(invoice.createdAt)}
+            </Typography>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+              <Chip
+                label={invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                color={getStatusColor(invoice.status)}
+                size="small"
+                sx={{ mt: 0.5 }}
+              />
+            </Box>
+          </Box>
+          <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+            <Typography variant="h6" gutterBottom>AV Gym System</Typography>
+            <Typography variant="body2" color="text.secondary">
+              123 Gym Street<br />
+              New York, NY 10001<br />
               Phone: (123) 456-7890<br />
               Email: billing@avgym.com
             </Typography>
-          </Grid>
+          </Box>
+        </Box>
+      </Paper>
 
-          <Grid item xs={12} md={6} textAlign={{ xs: 'left', md: 'right' }}>
-            <Typography variant="subtitle2" gutterBottom>Bill To</Typography>
-            <Typography variant="body1">{invoice.member.fullName}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Member ID: {invoice.member.membershipNumber || 'N/A'}<br />
-              Email: {invoice.member.email || 'N/A'}<br />
-              Phone: {invoice.member.phone || 'N/A'}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>Bill To</Typography>
+            <Typography variant="body1" fontWeight="bold">{invoice.member.fullName}</Typography>
+            {invoice.member.membershipNumber && (
+              <Typography variant="body2" color="text.secondary">
+                Membership: {invoice.member.membershipNumber}
+              </Typography>
+            )}
+            <Typography variant="body2">{invoice.member.email}</Typography>
+            <Typography variant="body2">{invoice.member.phone}</Typography>
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+              {invoice.member.address}
             </Typography>
-          </Grid>
+          </Paper>
 
-          {/* Invoice meta info */}
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2 }}>
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>Invoice Details</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               <Box>
-                <Typography variant="caption" color="text.secondary">Issue Date</Typography>
-                <Typography variant="body2">
-                  {format(new Date(invoice.createdAt), 'MMM d, yyyy')}
+                <Typography variant="subtitle2" color="text.secondary">Invoice #</Typography>
+                <Typography variant="body1">{invoice.number}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">Date</Typography>
+                <Typography variant="body1">
+                  {formatDate(invoice.createdAt)}
                 </Typography>
               </Box>
               <Box>
-                <Typography variant="caption" color="text.secondary">Due Date</Typography>
-                <Typography variant="body2">
-                  {format(new Date(invoice.dueDate), 'MMM d, yyyy')}
+                <Typography variant="subtitle2" color="text.secondary">Due Date</Typography>
+                <Typography variant="body1">
+                  {formatDate(invoice.dueDate)}
                 </Typography>
               </Box>
               <Box>
-                <Typography variant="caption" color="text.secondary">Amount Due</Typography>
-                <Typography variant="body2" fontWeight="bold">
-                  ${invoice.total.toFixed(2)}
-                </Typography>
+                <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                <Chip
+                  label={invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                  color={getStatusColor(invoice.status)}
+                  size="small"
+                />
               </Box>
             </Box>
-          </Grid>
-        </Grid>
+          </Paper>
+        </Box>
       </Paper>
 
       {/* Invoice Items */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Invoice Items</Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Description</TableCell>
-                <TableCell align="right">Quantity</TableCell>
-                <TableCell align="right">Unit Price</TableCell>
-                <TableCell align="right">Total</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {invoice.items.map((item, index) => (
-                <TableRow key={index}>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell align="right">{item.quantity}</TableCell>
-                  <TableCell align="right">${item.unitPrice.toFixed(2)}</TableCell>
-                  <TableCell align="right">${item.total.toFixed(2)}</TableCell>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr' }, gap: 3, mb: 4 }}>
+        <Paper sx={{ p: 3 }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Description</TableCell>
+                  <TableCell align="right">Quantity</TableCell>
+                  <TableCell align="right">Unit Price</TableCell>
+                  <TableCell align="right">Total</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          {/* Invoice Summary */}
-          <Box sx={{ mt: 2, textAlign: 'right', p: 2 }}>
-            <Grid container spacing={1} justifyContent="flex-end">
-              <Grid item xs={12} sm={4} md={3}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                  <Typography variant="body2">Subtotal:</Typography>
-                  <Typography variant="body2">${invoice.subtotal.toFixed(2)}</Typography>
+              </TableHead>
+              <TableBody>
+                {invoice.items.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell align="right">{item.quantity}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.unitPrice)}</TableCell>
+                    <TableCell align="right">{formatCurrency(item.quantity * item.unitPrice)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+        <Paper sx={{ p: 3, mt: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ width: '100%', maxWidth: 300 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Subtotal:</Typography>
+                <Typography variant="body2">
+                  {formatCurrency(calculateTotal(invoice.items))}
+                </Typography>
+              </Box>
+              {invoice.discount && invoice.discount > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">Discount:</Typography>
+                  <Typography variant="body2" color="error">
+                    -{formatCurrency(invoice.discount)}
+                  </Typography>
                 </Box>
-                {invoice.tax > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                    <Typography variant="body2">Tax:</Typography>
-                    <Typography variant="body2">${invoice.tax.toFixed(2)}</Typography>
-                  </Box>
-                )}
-                {invoice.discount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                    <Typography variant="body2">Discount:</Typography>
-                    <Typography variant="body2">-${invoice.discount.toFixed(2)}</Typography>
-                  </Box>
-                )}
-                <Divider sx={{ my: 1 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                  <Typography variant="subtitle2">Total:</Typography>
-                  <Typography variant="subtitle2">${invoice.total.toFixed(2)}</Typography>
-                </Box>
-              </Grid>
-            </Grid>
+              )}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Tax:</Typography>
+                <Typography variant="body2">
+                  {formatCurrency(calculateTax(calculateTotal(invoice.items), invoice.taxRate || 0))}
+                </Typography>
+              </Box>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="subtitle1" fontWeight="bold">Total:</Typography>
+                <Typography variant="subtitle1" fontWeight="bold">
+                  {formatCurrency(invoice.total)}
+                </Typography>
+              </Box>
+            </Box>
           </Box>
-        </TableContainer>
-      </Paper>
+        </Paper>
+      </Box>
 
       {/* Payment Information */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -423,12 +553,12 @@ export const InvoiceDetailPage: React.FC = () => {
                   {invoice.payments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell>
-                        {format(new Date(payment.date), 'MMM d, yyyy')}
+                        {formatDate(payment.date)}
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <PaymentMethodIcon method={payment.method} />
-                          {payment.method.replace('_', ' ')}
+                          {formatPaymentMethod(payment.method)}
                         </Box>
                       </TableCell>
                       <TableCell>{payment.reference || 'N/A'}</TableCell>

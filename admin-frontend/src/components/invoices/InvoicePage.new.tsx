@@ -243,10 +243,12 @@ export const InvoicePage: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Query to fetch invoices
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+  const { data: invoiceResponse, isLoading } = useQuery<InvoiceListResponse>({
     queryKey: ['invoices'],
-    queryFn: () => invoiceApi.getInvoices().then(res => res.items)
+    queryFn: () => invoiceApi.getInvoices()
   });
+  
+  const invoices = invoiceResponse?.invoices || [];
 
   // Mutation for bulk status updates
   const bulkUpdateStatusMutation = useMutation({
@@ -303,7 +305,7 @@ export const InvoicePage: React.FC = () => {
     if (!dialogState.selectedInvoice) return;
 
     try {
-      await invoiceApi.sendEmail(dialogState.selectedInvoice.id);
+      await invoiceApi.sendInvoiceEmail(dialogState.selectedInvoice.id);
       setDialogState(prev => ({ ...prev, isEmailOpen: false }));
       // Show success message (could be implemented with Snackbar)
     } catch (error) {
@@ -523,12 +525,12 @@ export const InvoicePage: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {dialogState.selectedInvoice.items.map((item) => (
-                      <TableRow key={item.id}>
+                    {dialogState.selectedInvoice.items?.map((item, index) => (
+                      <TableRow key={index}>
                         <TableCell>{item.description}</TableCell>
                         <TableCell align="right">{item.quantity}</TableCell>
-                        <TableCell align="right">${item.unitPrice.toFixed(2)}</TableCell>
-                        <TableCell align="right">${item.total.toFixed(2)}</TableCell>
+                        <TableCell align="right">${item.unitPrice?.toFixed(2) || '0.00'}</TableCell>
+                        <TableCell align="right">${item.total?.toFixed(2) || '0.00'}</TableCell>
                       </TableRow>
                     ))}
                     <TableRow>

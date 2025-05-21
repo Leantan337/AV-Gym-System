@@ -50,13 +50,14 @@ export const CheckInStatus: React.FC = () => {
         }
       };
 
-      wsService.subscribe('check_in_update', handleCheckInUpdate);
-      wsService.subscribe('connection_status', handleConnectionStatus);
-
+      // Store unsubscribe functions
+      const unsubCheckIn = wsService.subscribe('check_in_update', handleCheckInUpdate);
+      const unsubConnection = wsService.subscribe('connection_status', handleConnectionStatus);
+      
       // Cleanup on unmount
       return () => {
-        wsService.unsubscribe('check_in_update', handleCheckInUpdate);
-        wsService.unsubscribe('connection_status', handleConnectionStatus);
+        unsubCheckIn();
+        unsubConnection();
         clearInterval(connectionMonitor);
       };
     } catch (err) {

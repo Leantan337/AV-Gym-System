@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
@@ -89,8 +90,7 @@ export interface CheckInResponse {
   totalCount: number;
 }
 
-// Import member API types and functions
-import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
+// Member API types and functions are now imported at the top
 
 export const adminApi = {
   // Search

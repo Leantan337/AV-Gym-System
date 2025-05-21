@@ -50,7 +50,11 @@ export interface InvoiceItemFormData extends Omit<InvoiceItem, 'total'> {
 interface MemberSearchResult {
   id: string;
   fullName: string;
+  email: string;
+  phone: string;
+  address: string;
   membershipNumber: string;
+  membership_number?: string;
 }
 
 interface PresetItem {
@@ -64,7 +68,14 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const [selectedMember, setSelectedMember] = useState<MemberSearchResult | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    address: string;
+    membershipNumber: string;
+  } | null>(null);
   const [items, setItems] = useState<InvoiceItemFormData[]>([]);
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [notes, setNotes] = useState('');
@@ -78,9 +89,69 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     queryFn: invoiceApi.getTemplates,
   });
 
-  const { data: searchResults } = useQuery({
+  interface MemberData {
+    id: string;
+    fullName: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    membershipNumber: string;
+    membership_number?: string;
+  }
+
+  const handleMemberSelect = (member: MemberData) => {
+    const membershipNumber = (member.membershipNumber || member.membership_number || '').toString();
+    setSelectedMember({
+      id: member.id,
+      fullName: member.fullName,
+      email: member.email || '',
+      phone: member.phone || '',
+      address: member.address || '',
+      membershipNumber: membershipNumber || ''
+    });
+    setSearchQuery(member.fullName);
+  };
+
+  interface SearchResultMember {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    address: string;
+    membershipNumber: string;
+  }
+
+  interface MemberResult {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    address: string;
+    membershipNumber: string;
+    membership_number?: string;
+  }
+
+  const { data: searchResults = [] } = useQuery<MemberResult[]>({
     queryKey: ['memberSearch', searchQuery],
-    queryFn: () => searchMembers(searchQuery),
+    queryFn: async () => {
+      const results = await searchMembers(searchQuery) as Array<{
+        id: string;
+        fullName: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        membershipNumber?: string;
+        membership_number?: string;
+      }>;
+      return results.map(member => ({
+        id: member.id,
+        fullName: member.fullName,
+        email: member.email || '',
+        phone: member.phone || '',
+        address: member.address || '',
+        membershipNumber: (member.membershipNumber || member.membership_number || '').toString()
+      }));
+    },
     enabled: searchQuery.length > 2,
   });
 
@@ -89,7 +160,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
       setSelectedMember({
         id: invoice.member.id,
         fullName: invoice.member.fullName,
-        membershipNumber: invoice.member.membershipNumber,
+        email: invoice.member.email,
+        phone: invoice.member.phone,
+        address: invoice.member.address,
+        // membershipNumber is not available in the Invoice.member type
+        membershipNumber: '',
       });
       setItems(invoice.items.map(item => ({
         description: item.description,
@@ -102,12 +177,12 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
       setSelectedTemplate(invoice.templateId);
     } else {
       // Initialize with one empty item for new invoices
-      setItems([{ description: '', quantity: 1, unitPrice: 0 }]);
+      setItems([{ description: '', quantity: 1, unitPrice: 0, total: 0 }]);
     }
   }, [invoice]);
 
   const handleAddItem = () => {
-    setItems([...items, { description: '', quantity: 1, unitPrice: 0 }]);
+    setItems([...items, { description: '', quantity: 1, unitPrice: 0, total: 0 }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -154,30 +229,21 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedMember || !dueDate) return;
 
-    if (!selectedMember) {
-      alert('Please select a member');
-      return;
-    }
-
-    if (items.length === 0 || items.some(item => !item.description || !item.quantity || !item.unitPrice)) {
-      alert('Please fill in all item details');
-      return;
-    }
-
-    const data: CreateInvoiceData = {
+    const invoiceData: CreateInvoiceData = {
       memberId: selectedMember.id,
       items: items.map(item => ({
         description: item.description,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
       })),
-      dueDate: dueDate ? format(dueDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-      notes: notes,
-      templateId: selectedTemplate,
+      dueDate: new Date(dueDate).toISOString().split('T')[0],
+      notes: notes.trim() || undefined,
+      templateId: typeof selectedTemplate === 'string' ? selectedTemplate : (selectedTemplate as any)?.id || '',
     };
 
-    onSubmit(data);
+    onSubmit(invoiceData);
   };
 
   const handleTemplateChange = (templateId: string) => {

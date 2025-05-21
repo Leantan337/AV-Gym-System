@@ -23,7 +23,7 @@ import {
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
-  FilePdf as PdfIcon,
+  FileText as PdfIcon,
   Search as SearchIcon,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -169,7 +169,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
           </TableHead>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: filters.perPage }).map((_, index) => (
+              Array.from({ length: filters?.perPage || 5 }).map((_, index) => (
                 <TableRow key={index}>
                   <TableCell colSpan={7} sx={{ height: 57 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

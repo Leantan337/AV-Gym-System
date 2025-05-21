@@ -63,6 +63,19 @@ export interface InvoiceFilters {
   perPage?: number;
 }
 
+export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'other';
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  method: PaymentMethod;
+  transactionId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface InvoiceListResponse {
   invoices: Invoice[];
   totalCount: number;
