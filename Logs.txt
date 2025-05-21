@@ -731,6 +731,36 @@ Next Steps:
 
 [2025-05-17 13:53] TypeScript Fixes and Notification System Enhancements
 
+## 🛠️ Technical Debt Reduction
+
+### Notification System
+- ✅ Fixed API integration for notification delivery
+- ✅ Addressed template rendering issues
+- ✅ Improved error handling for failed notifications
+- ✅ Added delivery status tracking
+
+
+[2025-05-22 01:59] Member Management Component TypeScript Fixes
+
+## 🛠️ Technical Debt Reduction
+
+### Member Management Components
+- ✅ Fixed TypeScript errors in MemberForm and related components
+- ✅ Replaced Grid components with Box components for Material-UI v5 compatibility
+- ✅ Addressed expiry date field missing closing tags and JSX structure issues
+- ✅ Created proper component exports and type declarations
+- ✅ Implemented barrel file (index.ts) for clean component imports
+- ✅ Added type annotations for member parameters in mapping and filter functions
+- ✅ Fixed crop handler type mismatches in PhotoUploadComponent
+- ✅ Added null checks for potentially undefined crop coordinates
+- ✅ Ensured proper API response mapping in MemberListPage
+
+### Next Steps
+- Implement Invoice Management System improvements
+- Complete Check-In Module WebSocket integration
+- Enhance UI responsiveness for mobile devices
+- Update documentation for new component structure
+
 ## ✅ TypeScript Fixes
 - Fixed Grid component type errors in NotificationScheduler and TemplateTestingTool
 - Created new GridItem wrapper component to resolve MUI Grid typing issues
