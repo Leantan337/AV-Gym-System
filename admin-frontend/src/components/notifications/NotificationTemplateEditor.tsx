@@ -244,22 +244,24 @@ const NotificationTemplateEditor: React.FC = () => {
     setError(null);
     
     try {
-      let templateResponse;
+      let templateResponse: { data: Template };
       
       // Save or update template
       if (templateFormData.id) {
-        templateResponse = await axios.put(
+        const response = await axios.put<{ data: Template }>(
           `/api/notifications/templates/${templateFormData.id}/`, 
           templateFormData
         );
+        templateResponse = response.data;
       } else {
-        templateResponse = await axios.post(
+        const response = await axios.post<{ data: Template }>(
           '/api/notifications/templates/',
           { 
             ...templateFormData, 
             notification_type: NotificationType.MEMBERSHIP_EXPIRY 
           }
         );
+        templateResponse = response.data;
       }
       
       // Update settings to use this template

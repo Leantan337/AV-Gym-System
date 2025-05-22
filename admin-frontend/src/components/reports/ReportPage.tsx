@@ -3,11 +3,13 @@ import {
   Typography,
   Container,
   Box,
-  Grid,
   Paper,
   Tabs,
   Tab,
-  CircularProgress
+  CircularProgress,
+  Button,
+  IconButton,
+  Grid,
 } from '@mui/material';
 import ReportGenerator from './ReportGenerator';
 import axios from 'axios';
@@ -103,7 +105,7 @@ const ReportPage: React.FC = () => {
           ) : recentReports.length > 0 ? (
             <Grid container spacing={3}>
               {recentReports.map((report) => (
-                <Grid item xs={12} key={report.id}>
+                <Grid key={report.id} sx={{ width: '100%', mb: 2 }}>
                   <Paper sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box sx={{ flexGrow: 1 }}>
                       <Typography variant="subtitle1">

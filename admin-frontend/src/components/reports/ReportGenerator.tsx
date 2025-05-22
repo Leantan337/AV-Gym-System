@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Grid } from '@mui/material';
+import { GridItem } from '../common/GridItem';
 import {
   Box,
   Card,
@@ -10,7 +12,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   Snackbar,
   Alert,
   CircularProgress,
@@ -195,7 +196,7 @@ const ReportGenerator: React.FC = () => {
       case 'MEMBERS':
         return (
           <>
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <FormControl fullWidth margin="normal">
                 <InputLabel>Member Status</InputLabel>
                 <Select
@@ -209,8 +210,8 @@ const ReportGenerator: React.FC = () => {
                   <MenuItem value="SUSPENDED">Suspended</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </GridItem>
+            <GridItem xs={12} md={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Join Date From"
@@ -221,8 +222,8 @@ const ReportGenerator: React.FC = () => {
                   }}
                 />
               </LocalizationProvider>
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </GridItem>
+            <GridItem xs={12} md={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Join Date To"
@@ -233,14 +234,14 @@ const ReportGenerator: React.FC = () => {
                   }}
                 />
               </LocalizationProvider>
-            </Grid>
+            </GridItem>
           </>
         );
         
       case 'CHECKINS':
         return (
           <>
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <TextField
                 label="Member ID"
                 fullWidth
@@ -249,8 +250,8 @@ const ReportGenerator: React.FC = () => {
                 onChange={(e) => setMemberId(e.target.value)}
                 placeholder="Leave blank for all members"
               />
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </GridItem>
+            <GridItem xs={12} md={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Date From"
@@ -261,8 +262,8 @@ const ReportGenerator: React.FC = () => {
                   }}
                 />
               </LocalizationProvider>
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </GridItem>
+            <GridItem xs={12} md={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Date To"
@@ -273,14 +274,14 @@ const ReportGenerator: React.FC = () => {
                   }}
                 />
               </LocalizationProvider>
-            </Grid>
+            </GridItem>
           </>
         );
         
       case 'REVENUE':
         return (
           <>
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <FormControl fullWidth margin="normal">
                 <InputLabel>Payment Type</InputLabel>
                 <Select
@@ -294,8 +295,8 @@ const ReportGenerator: React.FC = () => {
                   <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </GridItem>
+            <GridItem xs={12} md={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Date From"
@@ -306,8 +307,8 @@ const ReportGenerator: React.FC = () => {
                   }}
                 />
               </LocalizationProvider>
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </GridItem>
+            <GridItem xs={12} md={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <DatePicker
                   label="Date To"
@@ -318,14 +319,14 @@ const ReportGenerator: React.FC = () => {
                   }}
                 />
               </LocalizationProvider>
-            </Grid>
+            </GridItem>
           </>
         );
         
       case 'SUBSCRIPTIONS':
         return (
           <>
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <FormControl fullWidth margin="normal">
                 <InputLabel>Subscription Status</InputLabel>
                 <Select
@@ -339,14 +340,14 @@ const ReportGenerator: React.FC = () => {
                   <MenuItem value="SUSPENDED">Suspended</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
+            </GridItem>
           </>
         );
         
       case 'EXPIRING_MEMBERSHIPS':
         return (
           <>
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <TextField
                 label="Days Until Expiry"
                 fullWidth
@@ -357,7 +358,7 @@ const ReportGenerator: React.FC = () => {
                 InputProps={{ inputProps: { min: 1, max: 365 } }}
                 helperText="Show memberships expiring within this many days"
               />
-            </Grid>
+            </GridItem>
           </>
         );
         
@@ -375,7 +376,7 @@ const ReportGenerator: React.FC = () => {
         
         <Box component="form" noValidate autoComplete="off">
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <FormControl fullWidth margin="normal">
                 <InputLabel>Report Type</InputLabel>
                 <Select
@@ -390,9 +391,9 @@ const ReportGenerator: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
+            </GridItem>
             
-            <Grid item xs={12} md={6}>
+            <GridItem xs={12} md={6}>
               <FormControl fullWidth margin="normal">
                 <InputLabel>Export Format</InputLabel>
                 <Select
@@ -407,11 +408,11 @@ const ReportGenerator: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
+            </GridItem>
             
             {reportType && renderParameters()}
             
-            <Grid item xs={12}>
+            <Grid container sx={{ width: '100%', mt: 2 }}>
               <Button
                 variant="contained"
                 color="primary"
