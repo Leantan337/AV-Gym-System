@@ -155,4 +155,32 @@ export const invoiceApi = {
     }>(`/invoices/stats/?${params.toString()}`);
     return response.data;
   },
+
+  // Get invoice analytics
+  getInvoiceAnalytics: async (startDate: string, endDate: string, period: string) => {
+    const response = await api.get<{
+      labels: string[];
+      datasets: Array<{
+        label: string;
+        data: number[];
+        backgroundColor: string;
+      }>;
+    }>('/invoices/analytics/', {
+      params: { startDate, endDate, period }
+    });
+    return response.data;
+  },
+
+  // Get top members by invoice value
+  getTopMembers: async (startDate: string, endDate: string, limit: number = 5) => {
+    const response = await api.get<Array<{
+      memberId: string;
+      memberName: string;
+      totalAmount: number;
+      invoiceCount: number;
+    }>>('/invoices/top-members/', {
+      params: { startDate, endDate, limit }
+    });
+    return response.data;
+  },
 };

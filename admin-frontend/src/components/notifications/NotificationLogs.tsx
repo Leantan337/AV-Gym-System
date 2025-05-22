@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+// In your imports, add Grid from @mui/material
+import { Grid } from '@mui/material';
+import { GridItem } from '../common/GridItem';
+import { SelectChangeEvent } from '@mui/material/Select';
 import {
   Box, 
   Paper, 
@@ -19,7 +23,6 @@ import {
   InputLabel,
   Select,
   Button,
-  Grid,
   Alert,
   CircularProgress,
   Dialog,
@@ -158,9 +161,8 @@ const NotificationLogs: React.FC = () => {
     setPage(0);
   };
   
-  const handleTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedType(event.target.value);
-    setPage(0);
+  const handleTypeChange = (event: SelectChangeEvent<string>) => {
+    setSelectedType(event.target.value as string);
   };
   
   const handleClearFilters = () => {
@@ -211,7 +213,7 @@ const NotificationLogs: React.FC = () => {
       {/* Search and Filters */}
       <Box mb={3}>
         <Grid container spacing={2} alignItems="flex-end">
-          <Grid item xs={12} md={showFilters ? 6 : 12}>
+          <GridItem xs={12} md={showFilters ? 6 : 12}>
             <TextField
               fullWidth
               variant="outlined"
@@ -233,11 +235,11 @@ const NotificationLogs: React.FC = () => {
                 )
               }}
             />
-          </Grid>
+          </GridItem>
           
           {showFilters && (
             <>
-              <Grid item xs={12} md={6}>
+              <GridItem xs={12} md={6}>
                 <FormControl fullWidth variant="outlined">
                   <InputLabel>Notification Type</InputLabel>
                   <Select
@@ -253,19 +255,19 @@ const NotificationLogs: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </GridItem>
               
               <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <Grid item xs={12} sm={6}>
+                <GridItem xs={12} sm={6}>
                   <DatePicker
                     label="Start Date"
                     value={startDate}
                     onChange={(newValue) => setStartDate(newValue)}
                     slotProps={{ textField: { fullWidth: true, variant: 'outlined' } }}
                   />
-                </Grid>
+                </GridItem>
                 
-                <Grid item xs={12} sm={6}>
+                <GridItem xs={12} sm={6}>
                   <DatePicker
                     label="End Date"
                     value={endDate}
@@ -273,10 +275,10 @@ const NotificationLogs: React.FC = () => {
                     slotProps={{ textField: { fullWidth: true, variant: 'outlined' } }}
                     minDate={startDate || undefined}
                   />
-                </Grid>
+                </GridItem>
               </LocalizationProvider>
               
-              <Grid item xs={12}>
+              <GridItem xs={12}>
                 <Box display="flex" justifyContent="flex-end">
                   <Button 
                     variant="outlined" 
@@ -286,7 +288,7 @@ const NotificationLogs: React.FC = () => {
                     Clear Filters
                   </Button>
                 </Box>
-              </Grid>
+              </GridItem>
             </>
           )}
         </Grid>
@@ -394,37 +396,37 @@ const NotificationLogs: React.FC = () => {
             </DialogTitle>
             <DialogContent dividers>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <GridItem xs={12} sm={6}>
                   <Typography variant="subtitle2" color="textSecondary">Sent At</Typography>
                   <Typography variant="body1">{formatDate(selectedLog.sent_at)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </GridItem>
+                <GridItem xs={12} sm={6}>
                   <Typography variant="subtitle2" color="textSecondary">Type</Typography>
                   <Typography variant="body1">{getNotificationTypeLabel(selectedLog.notification_type)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </GridItem>
+                <GridItem xs={12} sm={6}>
                   <Typography variant="subtitle2" color="textSecondary">Member</Typography>
                   <Typography variant="body1">{selectedLog.member.name}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                </GridItem>
+                <GridItem xs={12} sm={6}>
                   <Typography variant="subtitle2" color="textSecondary">Member ID</Typography>
                   <Typography variant="body1">{selectedLog.member.id}</Typography>
-                </Grid>
-                <Grid item xs={12}>
+                </GridItem>
+                <GridItem xs={12}>
                   <Typography variant="subtitle2" color="textSecondary">Subject</Typography>
                   <Typography variant="body1">{selectedLog.subject}</Typography>
-                </Grid>
+                </GridItem>
                 
                 {selectedLog.error_message && (
-                  <Grid item xs={12}>
+                  <GridItem xs={12}>
                     <Alert severity="error">
                       <Typography variant="subtitle2">Error Message:</Typography>
                       <Typography variant="body2">{selectedLog.error_message}</Typography>
                     </Alert>
-                  </Grid>
+                  </GridItem>
                 )}
                 
-                <Grid item xs={12}>
+                <GridItem xs={12}>
                   <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
                     <Tabs 
                       value={detailsTab} 
@@ -463,7 +465,7 @@ const NotificationLogs: React.FC = () => {
                       <div dangerouslySetInnerHTML={{ __html: selectedLog.content_html }} />
                     </Box>
                   )}
-                </Grid>
+                </GridItem>
               </Grid>
             </DialogContent>
             <DialogActions>

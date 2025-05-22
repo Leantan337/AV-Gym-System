@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SelectChangeEvent } from '@mui/material/Select';
 import {
   Box,
   TextField,
@@ -139,8 +140,8 @@ const NotificationTemplateEditor: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleTemplateChange = (e: React.ChangeEvent<{ value: unknown }>) => {
-    const templateId = e.target.value as string;
+  const handleTemplateChange = (event: SelectChangeEvent<string>) => {
+    const templateId = event.target.value;
     const selected = templates.find(t => t.id === templateId) || null;
     
     setSelectedTemplate(selected);

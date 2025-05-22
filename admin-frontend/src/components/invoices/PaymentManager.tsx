@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+// In your imports, add Grid from @mui/material
+import { Grid } from '@mui/material';
+import { GridItem } from '../common/GridItem';
 import {
   Box,
   Card,
@@ -25,7 +28,6 @@ import {
   Select,
   MenuItem,
   InputAdornment,
-  Grid,
   Alert,
   IconButton,
   Tooltip,
@@ -237,26 +239,26 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
           <Divider sx={{ my: 2 }} />
 
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            <GridItem xs={12} md={4}>
               <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                 <Typography variant="subtitle2" gutterBottom>Total Amount</Typography>
                 <Typography variant="h5" color="text.primary">${invoiceTotal.toFixed(2)}</Typography>
               </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
+            </GridItem>
+            <GridItem xs={12} md={4}>
               <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                 <Typography variant="subtitle2" gutterBottom>Paid Amount</Typography>
                 <Typography variant="h5" color="success.main">${getTotalPaid().toFixed(2)}</Typography>
               </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
+            </GridItem>
+            <GridItem xs={12} md={4}>
               <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                 <Typography variant="subtitle2" gutterBottom>Balance Due</Typography>
                 <Typography variant="h5" color={invoiceBalance > 0 ? 'error.main' : 'text.primary'}>
                   ${invoiceBalance.toFixed(2)}
                 </Typography>
               </Paper>
-            </Grid>
+            </GridItem>
           </Grid>
         </CardContent>
       </Card>

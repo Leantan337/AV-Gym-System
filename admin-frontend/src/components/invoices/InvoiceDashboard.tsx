@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+// In your imports, add Grid from @mui/material
+import { Grid } from '@mui/material';
+import { GridItem } from '../common/GridItem';
+
 import {
   Box,
   Card,
   CardContent,
   Typography,
-  Grid,
   Paper,
   Stack,
   Divider,
@@ -24,8 +27,11 @@ import {
   CircularProgress,
   Tab,
   Tabs,
+  SelectChangeEvent,
 } from '@mui/material';
-import { 
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import {
   BarChart,
   PieChart,
   LineChart,
@@ -44,9 +50,69 @@ import { useQuery } from '@tanstack/react-query';
 import { format, subDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { invoiceApi } from '../../services/invoiceApi';
 import { paymentService } from '../../services/paymentService';
+import { Invoice, InvoiceFilters, InvoiceListResponse } from '../../types/invoice';
 
-// This would typically be implemented with a proper chart library like recharts or chart.js
-// For brevity, we'll use dummy components here
+// Define types for the analytics data
+interface AnalyticsData {
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    backgroundColor: string;
+  }>;
+}
+
+interface TopMember {
+  memberId: string;
+  memberName: string;
+  totalAmount: number;
+  invoiceCount: number;
+}
+
+// Define interfaces to match API responses
+interface InvoiceAnalyticsData {
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    backgroundColor: string;
+  }>;
+  totalAmount?: number;
+  totalCount?: number;
+  averageAmount?: number;
+  overdueAmount?: number;
+  statusCounts?: {
+    paid: number;
+    pending: number;
+    overdue: number;
+    cancelled: number;
+  };
+}
+
+interface PaymentAnalyticsResponse {
+  totalAmount: number;
+  successfulPayments: number;
+  failedPayments: number;
+  refundedAmount: number;
+  paymentsByDay: Array<{ date: string; amount: number }>;
+  paymentMethodBreakdown: Array<{ method: string; count: number; amount: number }>;
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    backgroundColor: string;
+  }>;
+}
+
+interface TopMemberResponse {
+  id: string;
+  name: string;
+  invoiceCount: number;
+  totalAmount: number;
+  paidAmount: number;
+}
+
+// Dummy chart components (unchanged for brevity)
 const DummyBarChart = ({ data }: { data: any }) => (
   <Box sx={{ height: 200, bgcolor: 'background.paper', p: 2, position: 'relative' }}>
     <Typography variant="subtitle2" gutterBottom>Bar Chart - Revenue by Period</Typography>
@@ -192,47 +258,65 @@ export const InvoiceDashboard: React.FC = () => {
     end: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
   });
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
-  const [tabValue, setTabValue] = useState(0);
+  const [tabValue, setTabValue] = useState<number>(0);
 
   // Fetch invoice analytics
-  const { data: invoiceAnalytics, isLoading: loadingInvoiceAnalytics } = useQuery({
+  const { data: invoiceAnalytics, isLoading: loadingInvoiceAnalytics } = useQuery<InvoiceAnalyticsData>({
     queryKey: ['invoiceAnalytics', dateRange, period],
-    queryFn: () => invoiceApi.getInvoiceAnalytics(dateRange.start, dateRange.end, period),
+    queryFn: () => invoiceApi.getInvoiceAnalytics(dateRange.start, dateRange.end, period) as Promise<InvoiceAnalyticsData>,
   });
 
   // Fetch payment analytics
-  const { data: paymentAnalytics, isLoading: loadingPaymentAnalytics } = useQuery({
+  const { data: paymentAnalytics, isLoading: loadingPaymentAnalytics } = useQuery<PaymentAnalyticsResponse>({
     queryKey: ['paymentAnalytics', period],
-    queryFn: () => paymentService.getPaymentAnalytics(period),
+    queryFn: () => paymentService.getPaymentAnalytics(period) as Promise<PaymentAnalyticsResponse>,
   });
 
   // Fetch top members by invoice value
-  const { data: topMembers, isLoading: loadingTopMembers } = useQuery({
+  const { data: topMembers, isLoading: loadingTopMembers } = useQuery<TopMemberResponse[]>({
     queryKey: ['topMembers', dateRange],
-    queryFn: () => invoiceApi.getTopMembers(dateRange.start, dateRange.end),
+    queryFn: async () => {
+      const response = await invoiceApi.getTopMembers(dateRange.start, dateRange.end);
+      return response.map((item: any) => ({
+        id: item.memberId,
+        name: item.memberName,
+        invoiceCount: item.invoiceCount,
+        totalAmount: item.totalAmount,
+        paidAmount: item.paidAmount || 0, // Default to 0 if not provided
+      }));
+    },
   });
 
   // Fetch recent invoices
-  const { data: recentInvoices, isLoading: loadingRecentInvoices } = useQuery({
+  const { data: recentInvoicesResponse, isLoading: loadingRecentInvoices } = useQuery<InvoiceListResponse>({
     queryKey: ['recentInvoices'],
-    queryFn: () => invoiceApi.getInvoices({ limit: 5, sort: 'createdAt:desc' }),
+    queryFn: async () => {
+      const response = await invoiceApi.getInvoices({ 
+        page: 1, 
+        perPage: 5, 
+        sort: 'createdAt:desc' 
+      } as InvoiceFilters);
+      return response; // Adjusted to match InvoiceListResponse
+    },
   });
+  
+  const recentInvoices = recentInvoicesResponse?.invoices || [];
 
   // Prepare chart data
   const invoiceStatusData = [
-    { name: 'Paid', value: invoiceAnalytics?.countByStatus?.paid || 0, color: '#4caf50' },
-    { name: 'Pending', value: invoiceAnalytics?.countByStatus?.pending || 0, color: '#ff9800' },
-    { name: 'Overdue', value: invoiceAnalytics?.countByStatus?.overdue || 0, color: '#f44336' },
-    { name: 'Cancelled', value: invoiceAnalytics?.countByStatus?.cancelled || 0, color: '#9e9e9e' },
+    { name: 'Paid', value: invoiceAnalytics?.statusCounts?.paid || 0, color: '#4caf50' },
+    { name: 'Pending', value: invoiceAnalytics?.statusCounts?.pending || 0, color: '#ff9800' },
+    { name: 'Overdue', value: invoiceAnalytics?.statusCounts?.overdue || 0, color: '#f44336' },
+    { name: 'Cancelled', value: invoiceAnalytics?.statusCounts?.cancelled || 0, color: '#9e9e9e' },
   ];
 
-  const revenueByPeriod = invoiceAnalytics?.revenueByPeriod?.map((item: any) => ({
-    label: item.period,
-    amount: item.amount,
+  const revenueByPeriod = invoiceAnalytics?.datasets?.[0]?.data?.map((value: number, index: number) => ({
+    label: invoiceAnalytics?.labels?.[index] || '',
+    amount: value,
   })) || [];
 
-  const paymentTrends = paymentAnalytics?.paymentsByDay?.map((item: any) => ({
-    label: format(parseISO(item.date), 'MMM d'),
+  const paymentTrends = paymentAnalytics?.paymentsByDay?.map((item: { date: string; amount: number }, index: number) => ({
+    label: item.date,
     amount: item.amount,
   })) || [];
 
@@ -245,7 +329,7 @@ export const InvoiceDashboard: React.FC = () => {
     setDateRange({ ...dateRange, end: e.target.value });
   };
 
-  const handlePeriodChange = (e: React.ChangeEvent<{ value: unknown }>) => {
+  const handlePeriodChange = (e: SelectChangeEvent<'day' | 'week' | 'month' | 'year'>) => {
     setPeriod(e.target.value as 'day' | 'week' | 'month' | 'year');
   };
 
@@ -332,7 +416,7 @@ export const InvoiceDashboard: React.FC = () => {
             <Select
               value={period}
               label="Period"
-              onChange={handlePeriodChange as any}
+              onChange={handlePeriodChange}
             >
               <MenuItem value="day">Daily</MenuItem>
               <MenuItem value="week">Weekly</MenuItem>
@@ -351,68 +435,80 @@ export const InvoiceDashboard: React.FC = () => {
       </Paper>
 
       {/* Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid  container spacing={3} sx={{ mb: 3 }}>
+        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
           <Card>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <DollarSign size={40} color="#2196f3" />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Total Revenue</Typography>
-                  <Typography variant="h5">
-                    ${invoiceAnalytics?.totalAmount?.toFixed(2) || '0.00'}
-                  </Typography>
-                </Box>
-              </Stack>
+              <Typography color="textSecondary" gutterBottom>
+                Total Revenue
+              </Typography>
+              <Typography variant="h5">
+                ${(invoiceAnalytics?.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <TrendingUpIcon color="success" sx={{ mr: 1 }} />
+                <Typography variant="body2" color="success.main">
+                  +12% from last month
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        </GridItem >
+        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
           <Card>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <FileText size={40} color="#4caf50" />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Total Invoices</Typography>
-                  <Typography variant="h5">
-                    {invoiceAnalytics?.totalCount || 0}
-                  </Typography>
-                </Box>
-              </Stack>
+              <Typography color="textSecondary" gutterBottom>
+                Total Invoices
+              </Typography>
+              <Typography variant="h5">
+                {(invoiceAnalytics?.totalCount || 0).toLocaleString()}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <TrendingUpIcon color="success" sx={{ mr: 1 }} />
+                <Typography variant="body2" color="success.main">
+                  +5% from last month
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        </GridItem >
+        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
           <Card>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <ShoppingBag size={40} color="#ff9800" />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Average Invoice</Typography>
-                  <Typography variant="h5">
-                    ${invoiceAnalytics?.averageAmount?.toFixed(2) || '0.00'}
-                  </Typography>
-                </Box>
-              </Stack>
+              <Typography color="textSecondary" gutterBottom>
+                Average Invoice
+              </Typography>
+              <Typography variant="h5">
+                ${(invoiceAnalytics?.averageAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <TrendingUpIcon color="success" sx={{ mr: 1 }} />
+                <Typography variant="body2" color="success.main">
+                  +8% from last month
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        </GridItem >
+        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
           <Card>
             <CardContent>
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <AlertTriangle size={40} color="#f44336" />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Overdue Amount</Typography>
-                  <Typography variant="h5">
-                    ${invoiceAnalytics?.overdueAmount?.toFixed(2) || '0.00'}
-                  </Typography>
-                </Box>
-              </Stack>
+              <Typography color="textSecondary" gutterBottom>
+                Overdue Amount
+              </Typography>
+              <Typography variant="h5" color="error">
+                ${(invoiceAnalytics?.overdueAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <TrendingDownIcon color="error" sx={{ mr: 1 }} />
+                <Typography variant="body2" color="error">
+                  +3% from last month
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </GridItem >
+      </Grid >
 
       {/* Tab Navigation */}
       <Paper sx={{ mb: 3 }}>
@@ -437,8 +533,8 @@ export const InvoiceDashboard: React.FC = () => {
 
       {/* Tab Content */}
       {tabValue === 0 && (
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
+        <Grid  container spacing={3}>
+          <GridItem xs={12} md={8}>
             <Paper sx={{ height: '100%' }}>
               {loadingInvoiceAnalytics ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -448,8 +544,8 @@ export const InvoiceDashboard: React.FC = () => {
                 <DummyBarChart data={revenueByPeriod} />
               )}
             </Paper>
-          </Grid>
-          <Grid item xs={12} md={4}>
+          </GridItem >
+          <GridItem xs={12} md={4}>
             <Paper sx={{ height: '100%' }}>
               {loadingInvoiceAnalytics ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -459,8 +555,8 @@ export const InvoiceDashboard: React.FC = () => {
                 <DummyPieChart data={invoiceStatusData} />
               )}
             </Paper>
-          </Grid>
-          <Grid item xs={12}>
+          </GridItem >
+          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
             <Paper>
               <Box sx={{ p: 2 }}>
                 <Typography variant="h6">Recent Invoices</Typography>
@@ -515,13 +611,13 @@ export const InvoiceDashboard: React.FC = () => {
                 </Table>
               </TableContainer>
             </Paper>
-          </Grid>
-        </Grid>
+          </GridItem >
+        </Grid >
       )}
 
       {tabValue === 1 && (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
+        <GridItem spacing={3}>
+          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
             <Paper>
               {loadingPaymentAnalytics ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -531,8 +627,8 @@ export const InvoiceDashboard: React.FC = () => {
                 <DummyLineChart data={paymentTrends} />
               )}
             </Paper>
-          </Grid>
-          <Grid item xs={12} md={6}>
+          </GridItem >
+          <GridItem xs={12} sm={12} md={6} lg={6} xl={6}>
             <Card>
               <CardContent>
                 <Stack direction="row" alignItems="center" spacing={2}>
@@ -546,8 +642,8 @@ export const InvoiceDashboard: React.FC = () => {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid item xs={12} md={6}>
+          </GridItem >
+          <GridItem xs={12} sm={12} md={6} lg={6} xl={6}>
             <Card>
               <CardContent>
                 <Stack direction="row" alignItems="center" spacing={2}>
@@ -561,8 +657,8 @@ export const InvoiceDashboard: React.FC = () => {
                 </Stack>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid item xs={12}>
+          </GridItem >
+          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
             <Paper>
               <Box sx={{ p: 2 }}>
                 <Typography variant="h6">Payment Method Distribution</Typography>
@@ -591,7 +687,7 @@ export const InvoiceDashboard: React.FC = () => {
                       </TableRow>
                     ) : (
                       paymentAnalytics?.paymentMethodBreakdown?.map((method: any, index: number) => {
-                        const percentage = (method.amount / paymentAnalytics.totalAmount) * 100;
+                        const percentage = paymentAnalytics?.totalAmount ? (method.amount / paymentAnalytics.totalAmount) * 100 : 0;
                         return (
                           <TableRow key={index}>
                             <TableCell>{method.method}</TableCell>
@@ -606,13 +702,13 @@ export const InvoiceDashboard: React.FC = () => {
                 </Table>
               </TableContainer>
             </Paper>
-          </Grid>
-        </Grid>
+          </GridItem >
+        </GridItem >
       )}
 
       {tabValue === 2 && (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
+        <Grid spacing={3}>
+          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
             <Paper>
               <Box sx={{ p: 2 }}>
                 <Typography variant="h6">Top Members by Invoice Value</Typography>
@@ -643,7 +739,7 @@ export const InvoiceDashboard: React.FC = () => {
                       </TableRow>
                     ) : (
                       topMembers?.map((member: any) => {
-                        const paymentRate = (member.paidAmount / member.totalAmount) * 100;
+                        const paymentRate = member.totalAmount ? (member.paidAmount / member.totalAmount) * 100 : 0;
                         return (
                           <TableRow key={member.id}>
                             <TableCell>{member.name}</TableCell>
@@ -670,8 +766,8 @@ export const InvoiceDashboard: React.FC = () => {
                 </Table>
               </TableContainer>
             </Paper>
-          </Grid>
-        </Grid>
+          </GridItem >
+        </Grid >
       )}
 
       {/* Export Actions */}
@@ -681,7 +777,6 @@ export const InvoiceDashboard: React.FC = () => {
             variant="outlined"
             startIcon={<Download />}
             onClick={() => {
-              // Implementation for exporting to CSV would go here
               alert('Export to CSV functionality would be implemented here');
             }}
           >
@@ -691,7 +786,6 @@ export const InvoiceDashboard: React.FC = () => {
             variant="outlined"
             startIcon={<FileText />}
             onClick={() => {
-              // Implementation for generating PDF report would go here
               alert('Generate PDF report functionality would be implemented here');
             }}
           >

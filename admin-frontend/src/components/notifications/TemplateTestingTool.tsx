@@ -217,7 +217,7 @@ const TemplateTestingTool: React.FC = () => {
       </Box>
       
       <Grid container spacing={3}>
-        <GridItem item xs={12} md={6}>
+        <GridItem xs={12} md={6}>
           <FormControl fullWidth>
             <InputLabel>Template</InputLabel>
             <Select
@@ -235,7 +235,7 @@ const TemplateTestingTool: React.FC = () => {
         </GridItem>
         
         {testMode === 'send' && (
-          <GridItem item xs={12} md={6}>
+          <GridItem xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Test Recipient</InputLabel>
               <Select
@@ -262,7 +262,7 @@ const TemplateTestingTool: React.FC = () => {
           <AccordionDetails>
             <Grid container spacing={2}>
               {Object.entries(testData).map(([key, value]) => (
-                <GridItem item xs={12} sm={6} md={4} key={key}>
+                <GridItem xs={12} sm={6} md={4} key={key}>
                   <TextField
                     fullWidth
                     label={key}
@@ -274,7 +274,7 @@ const TemplateTestingTool: React.FC = () => {
                 </GridItem>
               ))}
               
-              <GridItem item xs={12}>
+              <GridItem xs={12}>
                 <Box display="flex" justifyContent="flex-end">
                   <Button 
                     onClick={handleResetTestData}

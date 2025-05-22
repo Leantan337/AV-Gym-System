@@ -274,7 +274,7 @@ const NotificationMetrics: React.FC = () => {
           <>
             {/* Summary Cards */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
-              <GridItem item xs={12} sm={6} md={3}>
+              <GridItem xs={12} sm={6} md={3}>
                 <Card elevation={1} sx={{ height: '100%' }}>
                   <CardContent>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -296,7 +296,7 @@ const NotificationMetrics: React.FC = () => {
                 </Card>
               </GridItem>
 
-              <GridItem item xs={12} sm={6} md={3}>
+              <GridItem xs={12} sm={6} md={3}>
                 <Card elevation={1} sx={{ height: '100%' }}>
                   <CardContent>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -317,7 +317,7 @@ const NotificationMetrics: React.FC = () => {
                 </Card>
               </GridItem>
 
-              <GridItem item xs={12} sm={6} md={3}>
+              <GridItem xs={12} sm={6} md={3}>
                 <Card elevation={1} sx={{ height: '100%' }}>
                   <CardContent>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -339,7 +339,7 @@ const NotificationMetrics: React.FC = () => {
                 </Card>
               </GridItem>
 
-              <GridItem item xs={12} sm={6} md={3}>
+              <GridItem xs={12} sm={6} md={3}>
                 <Card elevation={1} sx={{ height: '100%' }}>
                   <CardContent>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -371,7 +371,7 @@ const NotificationMetrics: React.FC = () => {
             {/* Tab 1: Overview */}
             {tabValue === 0 && (
               <Grid container spacing={3}>
-                <GridItem item xs={12} md={6}>
+                <GridItem xs={12} md={6}>
                   <Card elevation={1}>
                     <CardHeader title="Notification Distribution" />
                     <Divider />
@@ -402,7 +402,7 @@ const NotificationMetrics: React.FC = () => {
                   </Card>
                 </GridItem>
 
-                <GridItem item xs={12} md={6}>
+                <GridItem xs={12} md={6}>
                   <Card elevation={1}>
                     <CardHeader title="Delivery Methods" />
                     <Divider />

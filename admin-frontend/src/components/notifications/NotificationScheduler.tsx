@@ -456,7 +456,7 @@ const NotificationScheduler: React.FC = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={3}>
-            <GridItem item xs={6}>
+            <GridItem xs={6}>
               <FormControl fullWidth>
                 <InputLabel>Notification Type</InputLabel>
                 <Select
@@ -478,7 +478,7 @@ const NotificationScheduler: React.FC = () => {
               </Typography>
             </GridItem>
             
-            <GridItem item xs={6}>
+            <GridItem xs={6}>
               <TextField
                 fullWidth
                 label="Days Before Event"
@@ -494,7 +494,7 @@ const NotificationScheduler: React.FC = () => {
               />
             </GridItem>
             
-            <GridItem item xs={6}>
+            <GridItem xs={6}>
               <FormControlLabel
                 control={
                   <Switch
