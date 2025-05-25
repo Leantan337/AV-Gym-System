@@ -2,7 +2,7 @@ import axios from 'axios';
 import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'http://localhost:8001/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -155,12 +155,17 @@ export const adminApi = {
 
   // Auth
   login: async (username: string, password: string) => {
-    const response = await api.post('/token/', { username, password });
+    const response = await api.post('/auth/token/', { username, password });
+    localStorage.setItem('token', response.data.access);
+    localStorage.setItem('refresh_token', response.data.refresh);
     return response.data;
   },
 
   refreshToken: async (refresh: string) => {
-    const response = await api.post('/token/refresh/', { refresh });
+    const response = await api.post('/auth/token/refresh/', { refresh });
+    if (response.data.access) {
+      localStorage.setItem('token', response.data.access);
+    }
     return response.data;
   },
 

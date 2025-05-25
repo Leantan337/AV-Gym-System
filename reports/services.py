@@ -21,11 +21,9 @@ from django.conf import settings
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 
-from members.models import Member, Membership
-from check_ins.models import CheckIn
-from subscriptions.models import Subscription
-from billing.models import Payment
-from plans.models import MembershipSubscription, PaymentRecord
+from members.models import Member
+from checkins.models import CheckIn
+from plans.models import MembershipPlan, MembershipSubscription
 from .models import ReportJob, ReportType, ExportFormat
 
 

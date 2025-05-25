@@ -24,7 +24,7 @@ class Invoice(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    number = models.CharField(max_length=50, unique=True)  # e.g., INV-2025-001
+    number = models.CharField(max_length=50, unique=True, null=True, blank=True)  # Will be auto-generated on save
     member = models.ForeignKey(Member, on_delete=models.PROTECT, related_name='invoices')
     template = models.ForeignKey(InvoiceTemplate, on_delete=models.PROTECT)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)

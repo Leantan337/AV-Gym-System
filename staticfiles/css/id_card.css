@@ -1,0 +1,146 @@
+/* ID Card Styling */
+@page {
+    size: 3.375in 2.125in; /* Standard ID card size */
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    font-size: 9px;
+    color: #333;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+}
+
+.id-card {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.header {
+    background-color: #1a237e;
+    color: white;
+    padding: 4px 0;
+    text-align: center;
+    font-weight: bold;
+    font-size: 10px;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.content {
+    padding: 5px;
+    display: flex;
+    box-sizing: border-box;
+    height: calc(100% - 40px);
+}
+
+.photo {
+    width: 70px;
+    height: 70px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+}
+
+.member-info {
+    margin-bottom: 5px;
+}
+
+.row {
+    margin-bottom: 3px;
+    display: flex;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.label {
+    font-weight: bold;
+    width: 50px;
+    flex-shrink: 0;
+}
+
+.value {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.barcode-container {
+    text-align: center;
+    margin-top: 3px;
+    padding: 2px;
+    border-top: 1px dashed #ccc;
+}
+
+.barcode {
+    height: 25px;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.barcode img {
+    max-width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+}
+
+.footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #1a237e;
+    color: white;
+    text-align: center;
+    padding: 2px 0;
+    font-size: 6px;
+    line-height: 1.1;
+}
+
+.member-id {
+    font-family: monospace;
+    letter-spacing: 1px;
+    font-size: 8px;
+}
+
+.dates {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8px;
+    margin-top: 3px;
+}
+
+.date {
+    display: inline-block;
+    width: 48%;
+}
