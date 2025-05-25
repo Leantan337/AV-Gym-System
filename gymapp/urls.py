@@ -30,6 +30,28 @@ from reports.views import ReportViewSet
 from .views import dashboard_statistics
 from .api import admin_dashboard_stats, bulk_member_action, bulk_invoice_action, member_stats
 from .admin import gym_admin
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+# User profile view for /auth/me/ endpoint
+class UserProfileView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role': getattr(user, 'role', 'STAFF'),
+            'is_active': user.is_active,
+            'date_joined': user.date_joined
+        })
 
 # Import members URLs
 from members import urls as members_urls
@@ -53,6 +75,7 @@ urlpatterns = [
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/auth/me/', UserProfileView.as_view(), name='user-profile'),
     
     # Django REST Framework auth (for browsable API)
     path('api-auth/', include('rest_framework.urls')),
@@ -73,7 +96,6 @@ urlpatterns = [
     path('api/reports/generate/', ReportViewSet.as_view({'post': 'generate'}), name='report-generate'),
     path('api/reports/<int:pk>/download/', ReportViewSet.as_view({'get': 'download'}), name='report-download'),
 ]
-
 # Serve static and media files in development
 if settings.DEBUG:
     urlpatterns += [
