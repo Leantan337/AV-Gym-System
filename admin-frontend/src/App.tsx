@@ -14,6 +14,7 @@ import ReportPage from './components/reports/ReportPage';
 import LoginPage from './components/auth/LoginPage';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import RoleAuthorization from './components/auth/RoleAuthorization';
+import AuthTestPage from './pages/AuthTestPage';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function App() {
               {/* Public routes */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
+              <Route path="/auth-test" element={<AuthTestPage />} />
               
               {/* Protected routes */}
               <Route path="/" element={

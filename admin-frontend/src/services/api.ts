@@ -2,7 +2,7 @@ import axios from 'axios';
 import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8001/api',
+  baseURL: 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,9 +13,59 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    // Ensure we don't send an invalid Authorization header
+    delete config.headers.Authorization;
   }
   return config;
 });
+
+// Response interceptor for handling 401 Unauthorized responses
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 and we haven't already tried to refresh the token
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) {
+          // No refresh token available, redirect to login
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+        
+        // Try to refresh the token
+        const response = await axios.post(
+          'http://localhost:8000/api/auth/token/refresh/',
+          { refresh: refreshToken }
+        );
+        
+        const { access } = response.data;
+        
+        // Update the stored token
+        localStorage.setItem('token', access);
+        
+        // Update the Authorization header
+        originalRequest.headers.Authorization = `Bearer ${access}`;
+        
+        // Retry the original request
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh token failed, clear auth and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 export interface DashboardStats {
   members: {
