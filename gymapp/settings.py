@@ -34,6 +34,7 @@ ALLOWED_HOSTS = ['*']  # Update this in production
 # Application definition
 
 INSTALLED_APPS = [
+    'authentication.apps.AuthenticationConfig',
     'daphne',
     'channels',
     'django.contrib.admin',
@@ -55,7 +56,7 @@ INSTALLED_APPS = [
 ]
 
 # Custom user model
-AUTH_USER_MODEL = 'accounts.User'
+AUTH_USER_MODEL = 'authentication.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -115,6 +116,7 @@ ASGI_APPLICATION = 'gymapp.routing.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

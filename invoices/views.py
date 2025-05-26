@@ -1,6 +1,8 @@
-from rest_framework import viewsets, permissions, status, filters
+from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from authentication.permissions import IsStaffOrAdmin, IsTrainerOrHigher, IsOwnerOrStaff
+from authentication.decorators import role_required
 from django.db.models import Sum, Count
 from django.utils import timezone
 from django.http import FileResponse
@@ -29,6 +31,54 @@ class InvoiceTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 class InvoiceViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsTrainerOrHigher]  # Base permission
+    
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'mark_paid']:
+            self.permission_classes = [IsStaffOrAdmin]  # Only staff and admin can modify
+        elif self.action in ['list', 'retrieve']:
+            self.permission_classes = [IsTrainerOrHigher]  # Trainers can view
+        elif self.action == 'my_invoices':
+            self.permission_classes = [IsOwnerOrStaff]  # Members can view their own
+        return super().get_permissions()
+    
+    def list(self, request, *args, **kwargs):
+        # Members can only see their own invoices
+        if request.user.is_member_role():
+            queryset = self.get_queryset().filter(member__user=request.user)
+        else:
+            queryset = self.get_queryset()
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Members can only retrieve their own invoices
+        if request.user.is_member_role() and instance.member.user != request.user:
+            return Response(
+                {"detail": "You do not have permission to view this invoice."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def my_invoices(self, request):
+        """Endpoint for members to get their own invoices"""
+        invoices = self.get_queryset().filter(member__user=request.user)
+        serializer = self.get_serializer(invoices, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    @role_required(['staff', 'admin'])
+    def mark_paid(self, request, pk=None):
+        """Mark invoice as paid - only staff and admin"""
+        invoice = self.get_object()
+        invoice.status = 'paid'
+        invoice.save()
+        serializer = self.get_serializer(invoice)
+        return Response(serializer.data)
     queryset = Invoice.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter]

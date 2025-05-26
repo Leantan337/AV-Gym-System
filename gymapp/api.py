@@ -35,10 +35,10 @@ def admin_dashboard_stats(request):
     today_revenue = Invoice.objects.filter(
         created_at__date=today,
         status='paid'
-    ).aggregate(total=Sum('amount'))['total'] or 0
+    ).aggregate(total=Sum('total'))['total'] or 0
     pending_payments = Invoice.objects.filter(
         status='pending'
-    ).aggregate(total=Sum('amount'))['total'] or 0
+    ).aggregate(total=Sum('total'))['total'] or 0
     
     # Check-in statistics
     today_checkins = CheckIn.objects.filter(

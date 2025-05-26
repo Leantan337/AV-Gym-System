@@ -242,7 +242,7 @@ export const adminApi = {
   },
 
   bulkMemberAction: async (action: 'activate' | 'deactivate', memberIds: string[]) => {
-    const response = await api.post('/members/bulk_action/', {
+    const response = await api.post('/admin/bulk-member-action/', {
       action,
       member_ids: memberIds,
     });
@@ -281,7 +281,7 @@ export const adminApi = {
   },
 
   bulkInvoiceAction: async (action: 'mark_paid' | 'mark_pending', invoiceIds: string[]) => {
-    const response = await api.post('/invoices/bulk_action/', {
+    const response = await api.post('/admin/bulk-invoice-action/', {
       action,
       invoice_ids: invoiceIds,
     });

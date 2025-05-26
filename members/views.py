@@ -1,6 +1,8 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from authentication.permissions import IsStaffOrAdmin, IsTrainerOrHigher, IsOwnerOrStaff
+from authentication.decorators import role_required
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.http import HttpResponse
@@ -12,6 +14,67 @@ from .services import IDCardGenerator
 import tempfile
 
 class MemberViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsTrainerOrHigher]  # Base permission - trainers can view
+    
+    def get_permissions(self):
+        """Override to set custom permissions per action"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsStaffOrAdmin]  # Only staff and admin can modify
+        elif self.action in ['list', 'retrieve']:
+            self.permission_classes = [IsTrainerOrHigher]  # Trainers can view
+        elif self.action in ['me', 'my_checkins']:
+            self.permission_classes = [IsOwnerOrStaff]  # Members can view their own data
+        return super().get_permissions()
+    
+    def list(self, request, *args, **kwargs):
+        # Members can only see their own profile in the list
+        if request.user.is_member_role():
+            queryset = self.get_queryset().filter(user=request.user)
+        else:
+            queryset = self.get_queryset()
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Members can only retrieve their own profile
+        if request.user.is_member_role() and instance.user != request.user:
+            return Response(
+                {"detail": "You do not have permission to view this member."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """Endpoint for members to get their own profile"""
+        member = self.get_queryset().filter(user=request.user).first()
+        if not member:
+            return Response(
+                {"detail": "Member profile not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = self.get_serializer(member)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def checkins(self, request, pk=None):
+        """Get member check-ins - restricted by role"""
+        member = self.get_object()
+        
+        # Members can only view their own check-ins
+        if request.user.is_member_role() and member.user != request.user:
+            return Response(
+                {"detail": "You can only view your own check-ins."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        checkins = member.checkin_set.all().order_by('-check_in_time')
+        from checkins.serializers import CheckInSerializer
+        serializer = CheckInSerializer(checkins, many=True)
+        return Response(serializer.data)
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
     permission_classes = [permissions.IsAuthenticated]
