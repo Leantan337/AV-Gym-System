@@ -77,6 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [token]);
 
   // Check authentication on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     console.log('Auth mount - Token exists:', !!token);
     const checkToken = async () => {
@@ -126,7 +127,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const userResponse = await api.get('/auth/me/');
       console.log('User profile received:', userResponse.data);
       
-      setUser(userResponse.data);
+      // Normalize the role to uppercase to match the UserRole enum
+      const userData = {
+        ...userResponse.data,
+        role: userResponse.data.role.toUpperCase()
+      };
+      
+      console.log('Normalized user data:', userData);
+      setUser(userData);
       setIsAuthenticated(true);
       
       console.log('Login successful, navigating to /dashboard');
@@ -159,12 +167,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Logout function
   const logout = (): void => {
+    console.log('Logging out...');
+    // Clear tokens from localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
+    
+    // Clear axios defaults
+    delete api.defaults.headers.common['Authorization'];
+    
+    // Reset state
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
-    navigate('/login');
+    setError(null);
+    
+    console.log('Logout successful, redirecting to login');
+    // Force a full page reload to clear any cached state
+    window.location.href = '/login';
   };
 
   // Check authentication status
@@ -183,7 +202,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const userResponse = await api.get('/auth/me/');
       console.log('User profile fetched successfully', userResponse.data);
       
-      setUser(userResponse.data);
+      // Normalize the role to uppercase to match the UserRole enum
+      const userData = {
+        ...userResponse.data,
+        role: userResponse.data.role.toUpperCase()
+      };
+      
+      console.log('Normalized user data in checkAuth:', userData);
+      setUser(userData);
       setIsAuthenticated(true);
       return true;
     } catch (err: any) {

@@ -1,11 +1,18 @@
-import React from 'react';
-import { Paper, Typography, Box, Grid } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { 
+  Paper, Typography, Box, Grid, Snackbar, Alert, Chip, 
+  Fade, Badge
+} from '@mui/material';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip
 } from 'recharts';
 import ExpiringMemberships from './notifications/ExpiringMemberships';
+import { useWebSocket } from '../contexts/WebSocketContext';
+import { CheckInEvent } from '../services/websocket-new';
+import { ConnectionStatusIndicator } from './common/ConnectionStatusIndicator';
+import PeopleIcon from '@mui/icons-material/People';
 
 interface DashboardStats {
   members: {
@@ -28,6 +35,15 @@ interface DashboardStats {
 }
 
 export const Dashboard: React.FC = () => {
+  const queryClient = useQueryClient();
+  const { subscribe, connectionStatus } = useWebSocket();
+  const [recentCheckIns, setRecentCheckIns] = useState<CheckInEvent[]>([]);
+  const [notification, setNotification] = useState<{
+    open: boolean;
+    message: string;
+    type: 'success' | 'info' | 'warning' | 'error';
+  }>({ open: false, message: '', type: 'info' });
+  
   const { data: stats, isLoading } = useQuery<DashboardStats>({ 
     queryKey: ['dashboardStats'],
     queryFn: adminApi.getDashboardStats,
@@ -38,6 +54,34 @@ export const Dashboard: React.FC = () => {
       checkins: { today: 0, current: 0 }
     }
   });
+
+  // Subscribe to real-time check-in updates
+  useEffect(() => {
+    const unsubscribe = subscribe<CheckInEvent>('check_in_update', (checkInEvent) => {
+      // Update recent check-ins list
+      setRecentCheckIns(prev => {
+        const updatedList = [checkInEvent, ...prev.slice(0, 4)];
+        return updatedList;
+      });
+      
+      // Show notification
+      const action = checkInEvent.status === 'checked_in' ? 'checked in' : 'checked out';
+      setNotification({
+        open: true,
+        message: `${checkInEvent.member.full_name} has ${action}`,
+        type: 'info'
+      });
+      
+      // Invalidate dashboard stats to get updated counts
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    });
+    
+    return () => unsubscribe();
+  }, [subscribe, queryClient]);
+  
+  const handleCloseNotification = () => {
+    setNotification(prev => ({ ...prev, open: false }));
+  };
 
   if (isLoading) {
     return <Typography>Loading...</Typography>;
@@ -87,6 +131,18 @@ export const Dashboard: React.FC = () => {
 
   return (
     <Box sx={{ flexGrow: 1 }}>
+      {/* Connection Status Bar */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'flex-end', 
+          alignItems: 'center',
+          mb: 2,
+          gap: 2
+        }}
+      >
+        <ConnectionStatusIndicator />
+      </Box>
       <Box display="grid" sx={{ gap: 3, gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' } }}>
         {/* Members Stats */}
         <Box>
@@ -156,12 +212,49 @@ export const Dashboard: React.FC = () => {
         {/* Check-ins */}
         <Box sx={{ gridColumn: '1 / -1' }}>
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Check-ins Today: {stats.checkins.today}
-            </Typography>
-            <Typography color="textSecondary">
-              Currently in gym: {stats.checkins.current}
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Check-ins Today: {stats.checkins.today}
+                </Typography>
+                <Typography color="textSecondary">
+                  Currently in gym: {' '}
+                  <Badge 
+                    badgeContent={stats.checkins.current} 
+                    color="primary" 
+                    max={99}
+                    showZero
+                  >
+                    <PeopleIcon color="action" />
+                  </Badge>
+                </Typography>
+              </Box>
+              
+              {/* Recent Check-ins */}
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Recent Activity
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {recentCheckIns.length > 0 ? (
+                    recentCheckIns.map((checkIn, index) => (
+                      <Fade in={true} key={`${checkIn.id}-${index}`}>
+                        <Chip
+                          label={`${checkIn.member.full_name} ${checkIn.status === 'checked_in' ? 'in' : 'out'}`}
+                          size="small"
+                          color={checkIn.status === 'checked_in' ? 'success' : 'default'}
+                          sx={{ mb: 0.5 }}
+                        />
+                      </Fade>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="textSecondary">
+                      No recent activity
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </Box>
           </Paper>
         </Box>
         
@@ -170,6 +263,23 @@ export const Dashboard: React.FC = () => {
           <ExpiringMemberships />
         </Box>
       </Box>
+      
+      {/* Notification Snackbar */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={4000}
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseNotification} 
+          severity={notification.type} 
+          sx={{ width: '100%' }}
+          variant="filled"
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

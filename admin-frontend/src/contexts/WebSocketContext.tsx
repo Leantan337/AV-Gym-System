@@ -11,6 +11,8 @@ interface WebSocketContextType {
     handler: (data: T) => void,
     immediate?: boolean
   ) => () => void;
+  reconnect: () => void;
+  setAuthToken: (token: string | null) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -19,9 +21,13 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [latestCheckIn, setLatestCheckIn] = useState<CheckInEvent | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initialize WebSocket connection
+    // Initialize WebSocket connection with auth token if available
+    if (authToken) {
+      wsService.setAuthToken(authToken);
+    }
     wsService.connect();
 
     // Subscribe to connection status changes
@@ -61,6 +67,15 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   ) => {
     return wsService.subscribe(event, handler, immediate);
   };
+  
+  const reconnect = () => {
+    wsService.manualReconnect();
+  };
+  
+  const updateAuthToken = (token: string | null) => {
+    setAuthToken(token);
+    wsService.setAuthToken(token);
+  };
 
   return (
     <WebSocketContext.Provider
@@ -70,6 +85,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
         latestCheckIn,
         sendMessage,
         subscribe,
+        reconnect,
+        setAuthToken: updateAuthToken,
       }}
     >
       {children}

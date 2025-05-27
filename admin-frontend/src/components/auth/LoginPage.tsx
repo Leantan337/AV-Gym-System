@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
@@ -7,7 +6,6 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, error } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,9 +84,13 @@ const LoginPage: React.FC = () => {
             </div>
             
             <div className="text-sm">
-              <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+              <button 
+                type="button" 
+                className="font-medium text-blue-600 hover:text-blue-500"
+                onClick={() => alert('Password reset functionality coming soon!')}
+              >
                 Forgot your password?
-              </a>
+              </button>
             </div>
           </div>
           
