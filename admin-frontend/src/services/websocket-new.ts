@@ -19,7 +19,8 @@ export interface WebSocketMessage<T = any> {
 }
 
 const RECONNECT_DELAY = 1000; // 1 second
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_ATTEMPTS = 15; // Increased from 5 for better resilience
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds max delay between attempts
 
 export class WebSocketService {
   private socket: WebSocket | null = null;
@@ -39,6 +40,8 @@ export class WebSocketService {
   setAuthToken(token: string | null) {
     this.authToken = token;
     
+    // Store the token securely (memory only, not localStorage)
+    
     // If we're already connected, disconnect and reconnect with the new token
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.disconnect();
@@ -56,12 +59,11 @@ export class WebSocketService {
       this.connectionStatus = 'connecting';
       this.notifyConnectionStatusChange();
       
-      // Add authentication token to URL if available
+      // Create a more secure connection with proper JWT handling
       let url = this.baseUrl;
-      if (this.authToken) {
-        const separator = this.baseUrl.includes('?') ? '&' : '?';
-        url = `${this.baseUrl}${separator}token=${this.authToken}`;
-      }
+      // Instead of passing token in URL (which can be logged/cached),
+      // we'll use the auth message approach after connection
+      // This keeps the token out of server logs and browser history
       
       this.socket = new WebSocket(url);
       this.manualReconnectTriggered = manualReconnect;
@@ -69,6 +71,15 @@ export class WebSocketService {
       this.socket.onopen = () => {
         console.log('WebSocket connected');
         this.reconnectAttempts = 0;
+        
+        // Send authentication message immediately after connection
+        if (this.authToken && this.socket) {
+          this.socket.send(JSON.stringify({
+            type: 'authenticate',
+            payload: { token: this.authToken }
+          }));
+        }
+        
         this.connectionStatus = 'connected';
         this.notifyConnectionStatusChange();
         this.setupPing();
@@ -156,7 +167,15 @@ export class WebSocketService {
 
     this.pingInterval = setInterval(() => {
       if (this.socket?.readyState === WebSocket.OPEN) {
-        this.socket.send(JSON.stringify({ type: 'ping' }));
+        try {
+          this.socket.send(JSON.stringify({ type: 'ping' }));
+        } catch (error) {
+          console.error('Error sending ping message:', error);
+          // If we can't send a ping, the connection might be dead
+          // but the browser hasn't detected it yet
+          this.disconnect();
+          this.connect();
+        }
       }
     }, this.PING_INTERVAL);
   }
@@ -175,6 +194,15 @@ export class WebSocketService {
       console.error('Max reconnection attempts reached');
       this.connectionStatus = 'disconnected';
       this.notifyConnectionStatusChange();
+      
+      // After reaching max attempts, schedule a final retry after 1 minute
+      // This helps recover from longer network outages
+      setTimeout(() => {
+        console.log('Final reconnection attempt after cooldown period');
+        this.reconnectAttempts = 0;
+        this.connect();
+      }, 60000); // 1 minute cooldown
+      
       return;
     }
 
@@ -182,14 +210,19 @@ export class WebSocketService {
       clearTimeout(this.reconnectTimeout);
     }
 
-    const delay = RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts);
+    // Calculate delay with exponential backoff (1s, 2s, 4s, 8s, etc.)
+    // but with some randomization to prevent all clients reconnecting simultaneously
+    const baseDelay = RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts);
+    const jitter = Math.random() * 1000; // Add up to 1s of random jitter
+    const delay = Math.min(baseDelay + jitter, MAX_RECONNECT_DELAY);
+    
     this.reconnectAttempts++;
 
-    console.log(`Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${delay}ms`);
+    console.log(`Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${Math.round(delay)}ms`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.connect(this.manualReconnectTriggered);
-    }, Math.min(delay, 30000)); // Max 30s delay
+    }, delay);
   }
   
   // Method to manually trigger reconnection
@@ -291,6 +324,9 @@ export class WebSocketService {
   }
 
   private notifyConnectionStatusChange() {
+    // Log status changes for easier debugging
+    console.log(`WebSocket connection status changed to: ${this.connectionStatus}`);
+    
     const handlers = this.messageHandlers.get('connection_status');
     if (handlers) {
       handlers.forEach(handler => handler(this.connectionStatus));
@@ -390,8 +426,16 @@ class MessageBatcher {
   }
 }
 
+// Determine WebSocket URL based on environment
+const getWebSocketUrl = () => {
+  // Use secure WebSocket in production, regular in development
+  const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
+  const host = process.env.REACT_APP_API_HOST || 'localhost:8000';
+  return `${protocol}://${host}/ws/checkins/`;
+};
+
 // Create a singleton instance
-const wsService = new WebSocketService('ws://localhost:8000/ws/checkins/');
+const wsService = new WebSocketService(getWebSocketUrl());
 
 // Export the singleton instance as default
 export default wsService;

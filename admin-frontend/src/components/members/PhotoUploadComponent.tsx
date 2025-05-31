@@ -45,9 +45,12 @@ export default function PhotoUploadComponent({
   });
   const [zoom, setZoom] = useState<number>(1);
   const [tempImageUrl, setTempImageUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [fallbackImage, setFallbackImage] = useState<boolean>(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const dropAreaRef = useRef<HTMLDivElement>(null);
   
   // Initialize with the provided photo URL
   useEffect(() => {
@@ -55,66 +58,163 @@ export default function PhotoUploadComponent({
       setPhotoUrl(initialPhotoUrl);
     }
   }, [initialPhotoUrl]);
+  
+  // Setup drag and drop event listeners
+  useEffect(() => {
+    const dropArea = dropAreaRef.current;
+    if (!dropArea) return;
+    
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
+    };
+    
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
+    };
+    
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+    };
+    
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        processFile(e.dataTransfer.files[0]);
+      }
+    };
+    
+    // Add event listeners
+    dropArea.addEventListener('dragover', handleDragOver);
+    dropArea.addEventListener('dragenter', handleDragEnter);
+    dropArea.addEventListener('dragleave', handleDragLeave);
+    dropArea.addEventListener('drop', handleDrop);
+    
+    // Clean up
+    return () => {
+      dropArea.removeEventListener('dragover', handleDragOver);
+      dropArea.removeEventListener('dragenter', handleDragEnter);
+      dropArea.removeEventListener('dragleave', handleDragLeave);
+      dropArea.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+  
+  // Handle image loading errors with fallback
+  const handleImageError = () => {
+    console.error('Failed to load profile image, using fallback');
+    setFallbackImage(true);
+  };
 
-  // Handle file selection
+  // Process file (common function for both drag-drop and file input)
+  const processFile = (file: File) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    const maxSize = 2 * 1024 * 1024; // 2MB - production requirement
+
+    // Validate file type
+    if (!allowedTypes.includes(file.type)) {
+      setError('Invalid file type. Please upload a JPEG, PNG, or GIF image.');
+      return;
+    }
+
+    // Validate file size
+    if (file.size > maxSize) {
+      setError('File is too large. Maximum file size is 2MB.');
+      return;
+    }
+
+    // Clear previous errors
+    setError(null);
+    setFallbackImage(false);
+    
+    // Create temporary URL for the image to be cropped
+    const tempUrl = URL.createObjectURL(file);
+    setTempImageUrl(tempUrl);
+    setShowCropDialog(true);
+  };
+  
+  // Handle file selection from input
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-      const maxSize = 5 * 1024 * 1024; // 5MB
-
-      // Validate file type
-      if (!allowedTypes.includes(file.type)) {
-        setError('Invalid file type. Please upload a JPEG, PNG, or GIF image.');
-        return;
-      }
-
-      // Validate file size
-      if (file.size > maxSize) {
-        setError('File is too large. Maximum file size is 5MB.');
-        return;
-      }
-
-      // Clear previous errors
-      setError(null);
-      
-      // Create temporary URL for the image to be cropped
-      const tempUrl = URL.createObjectURL(file);
-      setTempImageUrl(tempUrl);
-      setShowCropDialog(true);
+      processFile(event.target.files[0]);
     }
   };
 
-  // Handle crop operation complete
-  const handleCropComplete = (crop: Crop, percentageCrop: Crop) => {
+  // Handle crop changes
+  const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const { width, height } = e.currentTarget;
+    const cropWidthInPercent = (width * 0.9) / width * 100;
+    const cropHeightInPercent = (height * 0.9) / height * 100;
+    
+    const percentageCrop: Crop = {
+      unit: '%' as '%', // Type assertion to ensure unit is correctly typed
+      width: cropWidthInPercent,
+      height: cropHeightInPercent,
+      x: (100 - cropWidthInPercent) / 2,
+      y: (100 - cropHeightInPercent) / 2,
+    };
+    
     setCrop(percentageCrop);
   };
+  
+  // Handle crop completion
+  const handleCropComplete = (crop: Crop) => {
+    // Store the crop data for later use when completing the crop operation
+    setCrop(crop);
+    
+    // Log crop dimensions for debugging
+    console.log('Crop dimensions:', {
+      width: crop.width,
+      height: crop.height,
+      x: crop.x,
+      y: crop.y,
+      unit: crop.unit
+    });
+  };
 
-  // Apply crop to image
+  // Apply crop to image and resize to 400x400px (production requirement)
   const applyCrop = async () => {
     if (!imageRef.current || !crop.width || !crop.height || !tempImageUrl) {
       return;
     }
 
     const image = imageRef.current;
-    const canvas = document.createElement('canvas');
+    
+    // Create first canvas for cropping
+    const cropCanvas = document.createElement('canvas');
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
     
     const pixelRatio = window.devicePixelRatio;
-    const ctx = canvas.getContext('2d');
+    const cropCtx = cropCanvas.getContext('2d');
 
-    canvas.width = crop.width * scaleX;
-    canvas.height = crop.height * scaleY;
+    // Set crop canvas size based on the crop dimensions
+    cropCanvas.width = crop.width * scaleX;
+    cropCanvas.height = crop.height * scaleY;
 
-    if (!ctx) return;
+    if (!cropCtx) return;
+    
+    // Create second canvas for resizing to exactly 400x400px
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = 400; // Exactly 400px width
+    finalCanvas.height = 400; // Exactly 400px height
+    const finalCtx = finalCanvas.getContext('2d');
+    
+    if (!finalCtx) return;
 
-    // Set canvas quality
-    ctx.imageSmoothingQuality = 'high';
-    ctx.scale(pixelRatio, pixelRatio);
+    // Set crop canvas quality
+    cropCtx.imageSmoothingQuality = 'high';
+    cropCtx.scale(pixelRatio, pixelRatio);
 
-    // Draw the cropped image
-    ctx.drawImage(
+    // Draw the cropped image to the crop canvas
+    cropCtx.drawImage(
       image,
       (crop.x || 0) * scaleX,
       (crop.y || 0) * scaleY,
@@ -125,9 +225,25 @@ export default function PhotoUploadComponent({
       crop.width * scaleX,
       crop.height * scaleY
     );
+    
+    // Set final canvas quality
+    finalCtx.imageSmoothingQuality = 'high';
+    
+    // Draw the cropped image to the final canvas, resizing to exactly 400x400px
+    finalCtx.drawImage(
+      cropCanvas,
+      0,
+      0,
+      cropCanvas.width,
+      cropCanvas.height,
+      0,
+      0,
+      400,
+      400
+    );
 
-    // Convert canvas to blob and create a file
-    canvas.toBlob(
+    // Convert final canvas to blob and create a file - use JPEG for cross-browser compatibility
+    finalCanvas.toBlob(
       (blob) => {
         if (blob) {
           // Clean up the temporary URL
@@ -137,20 +253,29 @@ export default function PhotoUploadComponent({
           const croppedImageUrl = URL.createObjectURL(blob);
           setPhotoUrl(croppedImageUrl);
           
-          // Create a file from the blob
-          const croppedFile = new File([blob], 'profile_photo.jpg', {
+          // Create a file from the blob with standardized name for consistency
+          const timestamp = new Date().getTime();
+          const croppedFile = new File([blob], `profile_photo_${timestamp}.jpg`, {
             type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          
+          // Log file details for debugging
+          console.log('Processed image file:', {
+            name: croppedFile.name,
+            size: `${(croppedFile.size / 1024).toFixed(2)} KB`,
+            type: croppedFile.type,
+            dimensions: '400x400px'
           });
           
           // Pass the file to parent component
           onPhotoSelect(croppedFile);
           
-          // Close the dialog
           setShowCropDialog(false);
         }
       },
-      'image/jpeg',
-      0.95 // Quality
+      'image/jpeg', // Always use JPEG for best cross-browser compatibility
+      0.92 // Higher quality for better image output
     );
   };
 
@@ -177,63 +302,91 @@ export default function PhotoUploadComponent({
 
   return (
     <Box>
-      {/* Photo Display Area */}
       <Box 
-        display="flex" 
-        flexDirection="column"
-        alignItems="center"
-        justifyContent="center"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 2,
+        }}
       >
+        {/* Photo Preview Area with Drag & Drop */}
         <Paper 
           elevation={2} 
+          ref={dropAreaRef}
           sx={{
-            width: 200,
-            height: 200,
+            width: 180,
+            height: 180,
+            borderRadius: '50%',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            p: 1,
-            mb: 2,
-            borderRadius: '50%',
             overflow: 'hidden',
             position: 'relative',
+            cursor: 'pointer',
+            border: isDragging ? '3px dashed #1976d2' : 'none',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              boxShadow: 3,
+            },
           }}
+          onClick={handleUploadClick}
         >
-          {photoUrl ? (
-            <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+          {photoUrl && !fallbackImage ? (
+            <>
               <Avatar
                 src={photoUrl}
                 alt="Member Photo"
+                onError={handleImageError}
                 sx={{ width: '100%', height: '100%' }}
               />
               <IconButton
-                size="small"
                 sx={{
                   position: 'absolute',
-                  bottom: 5,
-                  right: 5,
-                  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.7)' },
                 }}
-                onClick={handleUploadClick}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUploadClick();
+                }}
               >
-                <EditIcon fontSize="small" />
+                <EditIcon sx={{ color: 'white' }} />
               </IconButton>
-            </Box>
+            </>
           ) : (
-            <Box 
-              display="flex"
-              flexDirection="column"
-              alignItems="center"
-              justifyContent="center"
-              sx={{ color: 'text.secondary' }}
-            >
-              <CameraIcon sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="body2">No photo</Typography>
-            </Box>
+            <>
+              <Avatar
+                sx={{ width: '100%', height: '100%', bgcolor: 'primary.main' }}
+              >
+                <CameraIcon sx={{ fontSize: 60, color: 'white' }} />
+              </Avatar>
+              {isDragging && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(25, 118, 210, 0.7)',
+                    color: 'white',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  <Typography variant="subtitle1">Drop Photo Here</Typography>
+                </Box>
+              )}
+            </>
           )}
+          
           {isUploading && (
-            <Box 
+            <Box
               sx={{
                 position: 'absolute',
                 top: 0,
@@ -291,6 +444,15 @@ export default function PhotoUploadComponent({
             {error}
           </Typography>
         )}
+        
+        {/* Help text for drag & drop */}
+        <Typography 
+          variant="caption" 
+          color="text.secondary" 
+          sx={{ mt: 0.5, textAlign: 'center', display: 'block' }}
+        >
+          Drag & drop or click to upload. Max 2MB, 400x400px.
+        </Typography>
       </Box>
 
       {/* Crop Dialog */}
@@ -313,12 +475,10 @@ export default function PhotoUploadComponent({
               <ReactCrop
                 crop={crop}
                 onChange={(c) => setCrop(c)}
-                onComplete={(crop: Crop) => {
-                  // Store the crop data for later use when completing the crop operation
-                  setCrop(crop);
-                }}
+                onComplete={handleCropComplete}
                 aspect={1} // 1:1 aspect ratio for avatar
                 circularCrop
+                ruleOfThirds={true} // Helpful grid for better composition
               >
                 <img
                   ref={(img) => { imageRef.current = img; }}

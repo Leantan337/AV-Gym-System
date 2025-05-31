@@ -1,15 +1,25 @@
 import axios from 'axios';
 import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
+import { applySecurityHeaders, checkRateLimit, sanitizeInput } from '../utils/security';
+
+// Determine API URL based on environment
+const getApiBaseUrl = () => {
+  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+};
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
+    // Add security headers
+    'X-Content-Type-Options': 'nosniff',
+    'X-XSS-Protection': '1; mode=block'
   },
 });
 
-// Add token to requests
+// Add token to requests and apply security headers
 api.interceptors.request.use((config) => {
+  // Apply token authentication
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -17,10 +27,31 @@ api.interceptors.request.use((config) => {
     // Ensure we don't send an invalid Authorization header
     delete config.headers.Authorization;
   }
+  
+  // Apply additional security headers - using type assertion to fix TS error
+  const secureConfig = applySecurityHeaders(config);
+  Object.keys(secureConfig.headers || {}).forEach(key => {
+    if (secureConfig.headers && key) {
+      config.headers[key] = secureConfig.headers[key];
+    }
+  });
+  
+  // Rate limiting check for sensitive operations
+  const endpoint = config.url || '';
+  const isSensitiveEndpoint = endpoint.includes('auth') || 
+                            endpoint.includes('admin') || 
+                            config.method !== 'get';
+  
+  if (isSensitiveEndpoint && !checkRateLimit(endpoint)) {
+    // This would normally throw an error, but for now we'll just log it
+    // as we're implementing client-side protections as an extra layer
+    console.warn(`Rate limit exceeded for endpoint: ${endpoint}`);
+  }
+  
   return config;
 });
 
-// Response interceptor for handling 401 Unauthorized responses
+// Response interceptor for handling 401 Unauthorized responses and other errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -40,8 +71,10 @@ api.interceptors.response.use(
         
         // Try to refresh the token
         const response = await axios.post(
-          'http://localhost:8000/api/auth/token/refresh/',
-          { refresh: refreshToken }
+          `${getApiBaseUrl()}/auth/token/refresh/`,
+          { refresh: refreshToken },
+          // Apply security headers to refresh request
+          { headers: { 'X-Content-Type-Options': 'nosniff' } }
         );
         
         const { access } = response.data;
@@ -56,11 +89,27 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh token failed, clear auth and redirect to login
+        console.error('Token refresh failed:', refreshError);
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
+    }
+    
+    // Handle CORS and CSP errors more gracefully
+    if (error.message === 'Network Error') {
+      console.error('Network error - possible CORS issue:', error);
+    }
+    
+    // Handle rate limiting (429 Too Many Requests)
+    if (error.response?.status === 429) {
+      console.warn('Rate limit exceeded. Please try again later.');
+    }
+    
+    // Log other server errors
+    if (error.response?.status >= 500) {
+      console.error('Server error:', error.response?.status, error.message);
     }
     
     return Promise.reject(error);
@@ -145,7 +194,9 @@ export interface CheckInResponse {
 export const adminApi = {
   // Search
   searchMembers: async (query: string): Promise<MemberSearchResult[]> => {
-    const response = await api.get<Member[]>(`/members/search/?q=${encodeURIComponent(query)}`);
+    // Sanitize input to prevent injection attacks
+    const sanitizedQuery = sanitizeInput(query);
+    const response = await api.get<Member[]>(`/members/search/?q=${encodeURIComponent(sanitizedQuery)}`);
     return response.data.map(member => ({
       id: member.id,
       fullName: member.full_name,

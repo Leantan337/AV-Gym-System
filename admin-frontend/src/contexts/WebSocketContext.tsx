@@ -23,17 +23,35 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [latestCheckIn, setLatestCheckIn] = useState<CheckInEvent | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
 
+  // Monitor auth token changes and reconnect when token changes
+  // Re-enable WebSocket auto-connection for security improvements
   useEffect(() => {
-    // Initialize WebSocket connection with auth token if available
     if (authToken) {
       wsService.setAuthToken(authToken);
+      wsService.connect();
+      console.log('WebSocket connection secured with JWT token');
     }
-    wsService.connect();
+  }, [authToken]);
+  
+  // Initial connection and subscription setup
+  useEffect(() => {
+    // Initialize WebSocket connection on component mount
+    const token = localStorage.getItem('token');
+    if (token && !authToken) {
+      setAuthToken(token);
+    } else if (!token && !authToken) {
+      // Only connect for public resources if explicitly allowed
+      // For now, we require authentication for all WebSocket connections
+      console.log('Authentication required for WebSocket connections');
+    }
+    
+    console.log('WebSocket security enhanced');
 
     // Subscribe to connection status changes
     const unsubscribeStatus = wsService.subscribe<ConnectionStatus>(
       'connection_status',
       (status) => {
+        console.log('WebSocket status in context changed to:', status);
         setConnectionStatus(status);
         setIsConnected(status === 'connected');
       },

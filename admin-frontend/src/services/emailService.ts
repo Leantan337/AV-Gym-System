@@ -1,4 +1,6 @@
 import { api } from './api';
+import emailConfig from '../config/emailConfig';
+import { sanitizeHtml } from '../utils/security';
 
 export interface EmailTemplate {
   id: string;
@@ -23,6 +25,24 @@ export interface SendEmailParams {
   }>;
 }
 
+export interface EmailConfig {
+  provider: string;
+  host: string;
+  port: number;
+  username: string;
+  apiKey?: string;
+  secure: boolean;
+  fromEmail: string;
+  fromName: string;
+  enableTestMode: boolean;
+}
+
+export interface SMTPTestResult {
+  success: boolean;
+  message: string;
+  timestamp: string;
+}
+
 export interface BulkEmailParams {
   templateId: string;
   recipientIds: string[];
@@ -38,6 +58,9 @@ export interface EmailStatus {
   sentAt: string | null;
   error?: string;
 }
+
+// Current email configuration
+let currentEmailConfig: EmailConfig = emailConfig;
 
 export const emailService = {
   // Email Templates
@@ -108,5 +131,62 @@ export const emailService = {
   resendEmail: async (emailId: string): Promise<EmailStatus> => {
     const response = await api.post<EmailStatus>(`/emails/${emailId}/resend/`, {});
     return response.data;
+  },
+  // Email Configuration
+  getEmailConfig: async (): Promise<EmailConfig> => {
+    try {
+      // First try to get from the server, fallback to local config
+      const response = await api.get<EmailConfig>('/email/config/');
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to load email config from server, using local config', error);
+      return currentEmailConfig;
+    }
+  },
+  
+  updateEmailConfig: async (config: Partial<EmailConfig>): Promise<EmailConfig> => {
+    try {
+      // Update on the server
+      const response = await api.post<EmailConfig>('/email/config/', config);
+      // Update local cache
+      currentEmailConfig = { ...currentEmailConfig, ...response.data };
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update email configuration', error);
+      throw error;
+    }
+  },
+  
+  testSMTPConnection: async (): Promise<SMTPTestResult> => {
+    try {
+      const response = await api.post<SMTPTestResult>('/email/test-connection/');
+      return response.data;
+    } catch (error) {
+      console.error('SMTP test failed', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      };
+    }
+  },
+  
+  // DNS Record Validation
+  validateDNSRecords: async (domain: string): Promise<{
+    spf: { valid: boolean; record?: string; error?: string };
+    dkim: { valid: boolean; record?: string; error?: string };
+    dmarc: { valid: boolean; record?: string; error?: string };
+  }> => {
+    try {
+      const response = await api.post('/email/validate-dns/', { domain });
+      return response.data;
+    } catch (error) {
+      console.error('DNS validation failed', error);
+      return {
+        spf: { valid: false, error: 'DNS validation request failed' },
+        dkim: { valid: false, error: 'DNS validation request failed' },
+        dmarc: { valid: false, error: 'DNS validation request failed' },
+      };
+    }
   },
 };
