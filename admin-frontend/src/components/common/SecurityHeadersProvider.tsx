@@ -20,17 +20,8 @@ const SecurityHeadersProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     cspMeta.content = cspContent;
     
-    // Add X-Frame-Options equivalent meta tag
-    let xFrameOptionsMeta = document.getElementById('x-frame-options') as HTMLMetaElement | null;
-    if (!xFrameOptionsMeta) {
-      xFrameOptionsMeta = document.createElement('meta');
-      xFrameOptionsMeta.id = 'x-frame-options';
-      xFrameOptionsMeta.setAttribute('http-equiv', 'X-Frame-Options');
-      xFrameOptionsMeta.content = 'DENY';
-      document.head.appendChild(xFrameOptionsMeta);
-    }
-    
-    // Add X-XSS-Protection equivalent meta tag
+    // X-Frame-Options is now handled by Django's XFrameOptionsMiddleware
+    // X-XSS-Protection meta tag
     let xssProtectionMeta = document.getElementById('x-xss-protection') as HTMLMetaElement | null;
     if (!xssProtectionMeta) {
       xssProtectionMeta = document.createElement('meta');
@@ -63,19 +54,16 @@ const SecurityHeadersProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => {
       // Cleanup not strictly necessary since this is a root component,
       // but included for completeness
-      if (cspMeta && cspMeta.parentNode) {
+      if (cspMeta?.parentNode) {
         cspMeta.parentNode.removeChild(cspMeta);
       }
-      if (xFrameOptionsMeta && xFrameOptionsMeta.parentNode) {
-        xFrameOptionsMeta.parentNode.removeChild(xFrameOptionsMeta);
-      }
-      if (xssProtectionMeta && xssProtectionMeta.parentNode) {
+      if (xssProtectionMeta?.parentNode) {
         xssProtectionMeta.parentNode.removeChild(xssProtectionMeta);
       }
-      if (noSniffMeta && noSniffMeta.parentNode) {
+      if (noSniffMeta?.parentNode) {
         noSniffMeta.parentNode.removeChild(noSniffMeta);
       }
-      if (referrerPolicyMeta && referrerPolicyMeta.parentNode) {
+      if (referrerPolicyMeta?.parentNode) {
         referrerPolicyMeta.parentNode.removeChild(referrerPolicyMeta);
       }
     };

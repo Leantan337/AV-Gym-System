@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Paper, Typography, Box, Grid, Snackbar, Alert, Chip, 
+  Paper, Typography, Box, Snackbar, Alert, Chip, 
   Fade, Badge
 } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,7 +36,7 @@ interface DashboardStats {
 
 export const Dashboard: React.FC = () => {
   const queryClient = useQueryClient();
-  const { subscribe, connectionStatus } = useWebSocket();
+  const { subscribe } = useWebSocket();
   const [recentCheckIns, setRecentCheckIns] = useState<CheckInEvent[]>([]);
   const [notification, setNotification] = useState<{
     open: boolean;

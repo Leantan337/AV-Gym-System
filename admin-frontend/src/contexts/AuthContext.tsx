@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -31,7 +31,7 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   error: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
   checkRole: (allowedRoles: UserRole[]) => boolean;
@@ -44,7 +44,7 @@ const defaultAuthState: AuthState = {
   token: null,
   loading: true,
   error: null,
-  login: async () => {},
+  login: async () => false,
   logout: () => {},
   checkAuth: async () => false,
   checkRole: () => false,
@@ -67,221 +67,134 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Configure axios with token
+  // Configure axios with token and default settings
   useEffect(() => {
     if (token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      localStorage.setItem('token', token);
     } else {
       delete api.defaults.headers.common['Authorization'];
+      localStorage.removeItem('token');
+    }
+  }, [token]);
+
+  // Check if user is authenticated
+  const checkAuth = useCallback(async (): Promise<boolean> => {
+    if (!token) return false;
+    
+    try {
+      const response = await api.get('/api/auth/me/');
+      setUser(response.data);
+      setIsAuthenticated(true);
+      return true;
+    } catch (error) {
+      console.error('Authentication check failed:', error);
+      setError('Session expired. Please log in again.');
+      return false;
     }
   }, [token]);
 
   // Check authentication on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    console.log('Auth mount - Token exists:', !!token);
-    const checkToken = async () => {
-      if (token) {
+    const verifyToken = async () => {
+      setLoading(true);
+      const storedToken = localStorage.getItem('token');
+      
+      if (storedToken) {
         try {
-          console.log('Checking auth with token...');
           await checkAuth();
-          console.log('Auth check successful');
         } catch (error) {
-          console.error('Authentication verification failed', error);
-          logout();
-        } finally {
-          setLoading(false);
+          console.error('Token validation failed:', error);
+          // Clear invalid token
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
         }
-      } else {
-        console.log('No token found');
-        setLoading(false);
       }
+      setLoading(false);
     };
     
-    checkToken();
-  }, []);
+    verifyToken();
+  }, [checkAuth]);
 
   // Login function
-  const login = async (username: string, password: string): Promise<void> => {
-    console.log('Login attempt for user:', username);
-    setLoading(true);
-    setError(null);
-    
+  const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      console.log('Sending login request...');
-      // First, get the tokens
-      const tokenResponse = await api.post('/auth/token/', { username, password });
-      console.log('Token response received:', tokenResponse.data);
+      setLoading(true);
+      setError(null);
       
-      const { access, refresh } = tokenResponse.data;
+      const response = await api.post('/api/auth/token/', {
+        username,
+        password,
+      });
+
+      const { access } = response.data;
       
-      // Store tokens
-      localStorage.setItem('token', access);
-      localStorage.setItem('refreshToken', refresh);
-      
-      // Set the token in axios defaults
+      // Set the token in state (which will trigger the useEffect)
       setToken(access);
       
-      // Now fetch the user profile
-      console.log('Fetching user profile...');
-      const userResponse = await api.get('/auth/me/');
-      console.log('User profile received:', userResponse.data);
-      
-      // Normalize the role to uppercase to match the UserRole enum
-      const userData = {
-        ...userResponse.data,
-        role: userResponse.data.role.toUpperCase()
-      };
-      
-      console.log('Normalized user data:', userData);
-      setUser(userData);
+      // Fetch user data
+      const userResponse = await api.get('/api/auth/me/');
+      setUser(userResponse.data);
       setIsAuthenticated(true);
       
-      console.log('Login successful, navigating to /dashboard');
       navigate('/dashboard');
-    } catch (err: any) {
-      console.error('Login error:', err);
-      let errorMessage = 'Login failed. Please check your credentials and try again.';
-      
-      if (err.response && err.response.data) {
-        if (err.response.data.detail) {
-          errorMessage = err.response.data.detail;
-        } else if (typeof err.response.data === 'object') {
-          const messages = Object.values(err.response.data).flat();
-          errorMessage = messages.join(' ');
-        }
-      }
-      
-      setError(errorMessage);
-      setIsAuthenticated(false);
-      setUser(null);
-      
-      // Clear any partial auth state
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      delete api.defaults.headers.common['Authorization'];
+      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      setError('Invalid username or password');
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   // Logout function
-  const logout = (): void => {
-    console.log('Logging out...');
-    // Clear tokens from localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    
-    // Clear axios defaults
-    delete api.defaults.headers.common['Authorization'];
-    
-    // Reset state
+  const logout = useCallback(() => {
+    // Clear token from state and localStorage
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
-    setError(null);
     
-    console.log('Logout successful, redirecting to login');
-    // Force a full page reload to clear any cached state
-    window.location.href = '/login';
-  };
-
-  // Check authentication status
-  const checkAuth = async (): Promise<boolean> => {
-    console.log('checkAuth called');
-    if (!token) {
-      console.log('No token found');
-      setIsAuthenticated(false);
-      setUser(null);
-      return false;
-    }
-
-    try {
-      // First, try to get user info
-      console.log('Attempting to fetch user profile...');
-      const userResponse = await api.get('/auth/me/');
-      console.log('User profile fetched successfully', userResponse.data);
-      
-      // Normalize the role to uppercase to match the UserRole enum
-      const userData = {
-        ...userResponse.data,
-        role: userResponse.data.role.toUpperCase()
-      };
-      
-      console.log('Normalized user data in checkAuth:', userData);
-      setUser(userData);
-      setIsAuthenticated(true);
-      return true;
-    } catch (err: any) {
-      console.error('Failed to fetch user profile:', err);
-      
-      // If the error is 401, try to refresh the token
-      if (err.response?.status === 401) {
-        console.log('Token expired, attempting to refresh...');
-        const refreshToken = localStorage.getItem('refreshToken');
-        
-        if (refreshToken) {
-          try {
-            console.log('Refreshing token...');
-            const refreshResponse = await api.post('/auth/token/refresh/', { refresh: refreshToken });
-            const { access } = refreshResponse.data;
-            
-            console.log('Token refreshed, updating storage and retrying...');
-            localStorage.setItem('token', access);
-            setToken(access);
-            
-            // Retry getting user info with the new token
-            const userResponse = await api.get('/auth/me/');
-            setUser(userResponse.data);
-            setIsAuthenticated(true);
-            return true;
-          } catch (refreshErr) {
-            console.error('Token refresh failed:', refreshErr);
-            logout();
-            return false;
-          }
-        }
-      }
-      
-      // If we get here, either no refresh token or refresh failed
-      console.log('No valid refresh token or refresh failed, logging out');
-      logout();
-      return false;
-    }
-  };
-
-  // Check if user has required role
-  const checkRole = (allowedRoles: UserRole[]): boolean => {
-    if (!isAuthenticated || !user) return false;
+    // Clear any stored tokens
+    localStorage.removeItem('token');
     
-    // Admin has access to everything
-    if (user.role === UserRole.ADMIN) return true;
+    // Clear axios default headers
+    delete api.defaults.headers.common['Authorization'];
     
-    // Check if user's role is in the allowed roles
+    // Redirect to login page
+    navigate('/login');
+  }, [navigate]);
+
+  // Check user role
+  const checkRole = useCallback((allowedRoles: UserRole[]): boolean => {
+    if (!user) return false;
     return allowedRoles.includes(user.role);
-  };
+  }, [user]);
 
-  // Auth context value
-  const contextValue: AuthState = {
+  // Context value with proper typing
+  const value: AuthState = useMemo(() => ({
     isAuthenticated,
     user,
     token,
     loading,
     error,
-    login,
+    login: async (username: string, password: string) => {
+      try {
+        return await login(username, password);
+      } catch (error) {
+        throw error;
+      }
+    },
     logout,
     checkAuth,
     checkRole,
-  };
+  }), [isAuthenticated, user, token, loading, error, login, logout, checkAuth, checkRole]);
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // Auth context hook
 export const useAuth = () => useContext(AuthContext);
-
 export default AuthContext;

@@ -1,31 +1,40 @@
 import axios from 'axios';
-import { memberApi, MemberCreateUpdate, MemberResponse } from './memberApi';
+import { memberApi } from './memberApi';
 import { applySecurityHeaders, checkRateLimit, sanitizeInput } from '../utils/security';
 
 // Determine API URL based on environment
 const getApiBaseUrl = () => {
-  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+  // Use environment variable if set, otherwise default to Django's development server
+  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 };
 
+// Create axios instance with base configuration
 export const api = axios.create({
   baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
-    // Add security headers
-    'X-Content-Type-Options': 'nosniff',
-    'X-XSS-Protection': '1; mode=block'
+    'Accept': 'application/json',
   },
+  withCredentials: true, // Required for cookies/sessions and CORS with credentials
+  xsrfCookieName: 'csrftoken',
+  xsrfHeaderName: 'X-CSRFToken',
+  timeout: 10000, // 10 second timeout
 });
 
 // Add token to requests and apply security headers
 api.interceptors.request.use((config) => {
-  // Apply token authentication
+  // Apply token authentication if token exists
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    // Ensure we don't send an invalid Authorization header
-    delete config.headers.Authorization;
+  }
+  
+  // Add CSRF token for non-GET requests
+  if (config.method !== 'get') {
+    const csrfToken = getCookie('csrftoken');
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
   }
   
   // Apply additional security headers - using type assertion to fix TS error
@@ -43,57 +52,65 @@ api.interceptors.request.use((config) => {
                             config.method !== 'get';
   
   if (isSensitiveEndpoint && !checkRateLimit(endpoint)) {
-    // This would normally throw an error, but for now we'll just log it
-    // as we're implementing client-side protections as an extra layer
-    console.warn(`Rate limit exceeded for endpoint: ${endpoint}`);
+    return Promise.reject(new Error('Rate limit exceeded. Please try again later.'));
   }
   
   return config;
 });
 
-// Response interceptor for handling 401 Unauthorized responses and other errors
+// Helper function to get cookie by name
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+// Response interceptor for handling CORS and other errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
-    // If the error is 401 and we haven't already tried to refresh the token
+    // Handle CORS errors
+    if (error.message === 'Network Error' && !originalRequest._retry) {
+      console.error('Network Error - Possible CORS issue');
+      // You might want to redirect to an error page or show a user-friendly message
+      return Promise.reject(new Error('Unable to connect to the server. Please check your connection and try again.'));
+    }
+    
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Handle token refresh or redirect to login
+      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+    
+    // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
       try {
         const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          // No refresh token available, redirect to login
-          window.location.href = '/login';
-          return Promise.reject(error);
+        if (refreshToken) {
+          const response = await axios.post(
+            `${getApiBaseUrl()}/auth/token/refresh/`, 
+            { refresh: refreshToken },
+            { withCredentials: true }
+          );
+          
+          const { access } = response.data;
+          localStorage.setItem('token', access);
+          originalRequest.headers.Authorization = `Bearer ${access}`;
+          
+          return api(originalRequest);
         }
-        
-        // Try to refresh the token
-        const response = await axios.post(
-          `${getApiBaseUrl()}/auth/token/refresh/`,
-          { refresh: refreshToken },
-          // Apply security headers to refresh request
-          { headers: { 'X-Content-Type-Options': 'nosniff' } }
-        );
-        
-        const { access } = response.data;
-        
-        // Update the stored token
-        localStorage.setItem('token', access);
-        
-        // Update the Authorization header
-        originalRequest.headers.Authorization = `Bearer ${access}`;
-        
-        // Retry the original request
-        return api(originalRequest);
-      } catch (refreshError) {
-        // Refresh token failed, clear auth and redirect to login
-        console.error('Token refresh failed:', refreshError);
+      } catch (error) {
+        // If refresh fails, clear auth and redirect to login
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
-        return Promise.reject(refreshError);
+        return Promise.reject(error);
       }
     }
     
@@ -258,7 +275,7 @@ export const adminApi = {
   login: async (username: string, password: string) => {
     const response = await api.post('/auth/token/', { username, password });
     localStorage.setItem('token', response.data.access);
-    localStorage.setItem('refresh_token', response.data.refresh);
+    localStorage.setItem('refreshToken', response.data.refresh);
     return response.data;
   },
 
