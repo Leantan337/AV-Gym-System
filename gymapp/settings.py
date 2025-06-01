@@ -174,10 +174,7 @@ CORS_EXPOSE_HEADERS = [
 ]
 
 # --- CSP Configuration (django-csp 4.0+) ---
-CSP_ENABLED = not DEBUG  # Enable CSP in production
-CSP_REPORT_ONLY = DEBUG  # Only report violations in development
-
-# New format required by django-csp 4.0+
+# Using new format required by django-csp 4.0+
 CONTENT_SECURITY_POLICY = {
     "default-src": ["'self'"],
     "script-src": [
@@ -216,9 +213,10 @@ CONTENT_SECURITY_POLICY = {
 }
 
 # Optional: Add nonce support if you use inline scripts with {% csp_nonce %}
-CONTENT_SECURITY_POLICY_NONCE_IN = ['script-src']
+CONTENT_SECURITY_POLICY_NONCE_FOR = ['script-src']
 
-# Upgrade HTTP to HTTPS in production
+# Additional CSP settings in new format
+CONTENT_SECURITY_POLICY_REPORT_ONLY = DEBUG
 CONTENT_SECURITY_POLICY_UPGRADE_INSECURE_REQUESTS = not DEBUG
 
 # --- CSRF & Session Settings ---

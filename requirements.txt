@@ -1,18 +1,41 @@
+# Django and REST framework
 Django==5.0.1
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
 djangorestframework-simplejwt==5.3.1
-Pillow>=10.1.0
-python-dotenv==1.0.0
+
+# Database
 psycopg2-binary>=2.9.6,<2.10.0
-celery==5.3.6
-redis==5.0.1
-WeasyPrint==60.1
-python-barcode==0.15.1
+
+# Asynchronous and WebSockets
 channels==4.1.0
 daphne==4.1.0
 channels-redis==4.1.0
-reportlab>=4.0.0
+
+# Task Queue and Caching
+celery==5.3.6
+redis==5.0.1
+
+# Security
+django-csp==4.0.0
+python-dotenv==1.0.0
+
+# Image Processing
+Pillow>=10.1.0
 qrcode>=7.0
+
+# PDF and Document Generation
+WeasyPrint==60.1
+reportlab>=4.0.0
+python-barcode==0.15.1
+
+# Data Processing and Export
 pandas>=2.0.0
 xlsxwriter>=3.0.0
+
+# HTTP Requests (for testing)
+requests>=2.30.0
+
+# Development and Testing
+pytest>=7.0.0
+pytest-django>=4.5.0
