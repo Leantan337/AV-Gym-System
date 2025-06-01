@@ -1,5 +1,5 @@
 // Import the service and its class
-import wsService, { WebSocketService } from '../websocket-new';
+import wsService, { WebSocketService } from '../websocket';
 
 // Mock WebSocket
 class MockWebSocket {

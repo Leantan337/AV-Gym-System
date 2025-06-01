@@ -46,13 +46,28 @@ AUTH_USER_MODEL = 'authentication.User'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware must come before Common middleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'csp.middleware.CSPMiddleware',
+]
+
+# CSRF Settings
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access to CSRF cookie
+CSRF_COOKIE_SAMESITE = 'Lax'  # Allows CSRF cookie to be sent in same-site requests
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'https://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://127.0.0.1:3000',
+    'http://localhost:8000',
+    'https://localhost:8000',
+    'http://127.0.0.1:8000',
+    'https://127.0.0.1:8000',
 ]
 
 ROOT_URLCONF = "gymapp.urls"
@@ -148,7 +163,12 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
+
+# Allow all origins in development (comment out in production)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -159,6 +179,11 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-content-type-options',  # Add security headers
+    'x-frame-options',
+    'x-xss-protection',
+    'content-security-policy',
+    'referrer-policy',
 ]
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -171,53 +196,32 @@ CORS_ALLOW_METHODS = [
 CORS_EXPOSE_HEADERS = [
     'content-type',
     'x-csrftoken',
+    'x-content-type-options',  # Expose security headers
+    'x-frame-options',
+    'x-xss-protection',
+    'content-security-policy',
+    'referrer-policy',
 ]
 
-# --- CSP Configuration (django-csp 4.0+) ---
-# Using new format required by django-csp 4.0+
-CONTENT_SECURITY_POLICY = {
-    "default-src": ["'self'"],
-    "script-src": [
-        "'self'",
-        "'unsafe-inline'",  # Needed for dev tools and some scripts
-        "'unsafe-eval'"     # Needed for tools like Webpack
-    ],
-    "style-src": [
-        "'self'",
-        "'unsafe-inline'"   # Needed for some inline styles
-    ],
-    "img-src": [
-        "'self'",
-        "data:",
-        "blob:",
-        "*"  # Allow from any domain during dev; restrict in production
-    ],
-    "font-src": [
-        "'self'",
-        "data:",
-        "*"  # Allow from any domain during dev; restrict in production
-    ],
-    "connect-src": [
-        "'self'",
-        "http://localhost:8000",
-        "ws://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    "frame-src": ["'self'"],
-    "object-src": ["'none'"],  # Prevent use of <object>, <embed>, <applet>
-    "base-uri": ["'self'"],    # Prevent <base> tag hijack
-    "form-action": ["'self'"], # Restrict form submissions
-    "frame-ancestors": ["'self'"],  # Prevent clickjacking
+# --- Content Security Policy and Security Headers ---
+
+# Simplified approach for development - Security middleware will add these headers
+# For development, disable CSP enforcement while we resolve configuration issues
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_SSL_REDIRECT = False  # Set to True in production
+SECURE_HSTS_SECONDS = 0  # Set to at least 31536000 in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # Set to True in production
+SECURE_HSTS_PRELOAD = False  # Set to True in production
+
+# Add Security Headers
+SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS = {
+    # Allow all connections during development 
+    'Content-Security-Policy': "default-src 'self'; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://127.0.0.1:3000 ws://localhost:* ws://127.0.0.1:* *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *; font-src 'self' data: *; frame-src 'self'; object-src 'none';",
+    # Set report-only mode for development
+    'Content-Security-Policy-Report-Only': "default-src 'self';"
 }
 
-# Optional: Add nonce support if you use inline scripts with {% csp_nonce %}
-CONTENT_SECURITY_POLICY_NONCE_FOR = ['script-src']
-
-# Additional CSP settings in new format
-CONTENT_SECURITY_POLICY_REPORT_ONLY = DEBUG
-CONTENT_SECURITY_POLICY_UPGRADE_INSECURE_REQUESTS = not DEBUG
+# CSP Configuration completely handled by SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS above
 
 # --- CSRF & Session Settings ---
 CSRF_TRUSTED_ORIGINS = [

@@ -33,8 +33,9 @@ import {
 import { Search, LogOut, User, Clock, AlertTriangle, Check } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { checkOutMember } from '../../services/api';
-import { format, subDays, formatDistance } from 'date-fns';
-import wsService from '../../services/websocket';
+import { format, formatDistance } from 'date-fns';
+import { useWebSocket } from '../../contexts/WebSocketContext';
+import { CheckInWebSocketEvent } from '../../services/websocket';
 
 interface CheckIn {
   id: string;
@@ -80,30 +81,26 @@ export const CheckInHistory: React.FC<CheckInHistoryProps> = ({
   const [selectedCheckIn, setSelectedCheckIn] = useState<CheckIn | null>(null);
   const [realtimeActive, setRealtimeActive] = useState<boolean>(true);
   const queryClient = useQueryClient();
+  const { sendMessage, subscribe } = useWebSocket();
 
   // Handle real-time updates
   useEffect(() => {
-    wsService.connect();
-
-    const handleCheckInUpdate = (data: { type: 'check_in' | 'check_out', checkIn: CheckIn }) => {
+    const unsubscribe = subscribe<CheckInWebSocketEvent>('check_in_update', (event) => {
       queryClient.setQueryData(['checkIns'], (old: CheckIn[] = []) => {
-        if (data.type === 'check_in') {
-          return [data.checkIn, ...old];
+        if (event.type === 'check_in') {
+          return [event.checkIn, ...old];
         } else {
           return old.map(item => 
-            item.id === data.checkIn.id ? data.checkIn : item
+            item.id === event.checkIn.id ? event.checkIn : item
           );
         }
       });
-    };
+    });
 
-    // Store the unsubscribe function
-    const unsubscribe = wsService.subscribe('check_in_update', handleCheckInUpdate);
-    
     return () => {
       unsubscribe();
     };
-  }, [queryClient]);
+  }, [queryClient, subscribe]);
 
   const handleFilterChange = (key: keyof CheckInFilters, value: any) => {
     const newFilters = { ...filters, [key]: value };
@@ -157,7 +154,7 @@ export const CheckInHistory: React.FC<CheckInHistoryProps> = ({
     setRealtimeActive(!realtimeActive);
     if (!realtimeActive) {
       // Reconnect WebSocket
-      wsService.reconnectNow();
+      sendMessage('reconnect');
     }
   };
 

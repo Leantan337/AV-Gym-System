@@ -8,9 +8,10 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 """
 
 import os
-
-from django.core.asgi import get_asgi_application
+import django
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gymapp.settings")
+django.setup()  # Initialize Django ASGI application early to ensure apps are loaded
 
-application = get_asgi_application()
+# Import the routing application after Django is set up
+from .routing import application

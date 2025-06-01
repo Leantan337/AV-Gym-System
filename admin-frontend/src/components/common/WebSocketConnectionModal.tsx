@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Dialog, 
   DialogTitle, 
@@ -20,16 +20,23 @@ const WebSocketConnectionModal: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [attempting, setAttempting] = useState(false);
   const [attemptCount, setAttemptCount] = useState(0);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Show dialog when connection is lost
   useEffect(() => {
+    // Clear any existing timeout
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
     if (connectionStatus === 'disconnected') {
       setOpen(true);
     } else if (connectionStatus === 'connected') {
       // Close dialog after successful reconnection and show brief success message
       if (open && attempting) {
         // Show success for 1.5 seconds before closing
-        setTimeout(() => {
+        closeTimeoutRef.current = setTimeout(() => {
           setOpen(false);
           setAttempting(false);
           setAttemptCount(0);
@@ -37,10 +44,24 @@ const WebSocketConnectionModal: React.FC = () => {
       } else {
         // Ensure dialog is closed when connected
         setOpen(false);
+        setAttempting(false); // Ensure attempting is false if connected without a prior attempt
+        setAttemptCount(0);
       }
+    } else if (connectionStatus === 'connecting') {
+        // Keep modal open but maybe show connecting state
+        setOpen(true);
     }
   }, [connectionStatus, open, attempting]);
-  
+
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Force ability to close the dialog if it's been open too long
   useEffect(() => {
     if (open) {

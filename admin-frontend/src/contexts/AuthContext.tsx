@@ -66,6 +66,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  
+  // Force logout - centralized function to handle all logout scenarios including errors
+  const forceLogout = useCallback((errorMessage?: string) => {
+    // Clear token from state and localStorage
+    setToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    
+    // Clear any stored tokens
+    localStorage.removeItem('token');
+    
+    // Clear axios default headers
+    delete api.defaults.headers.common['Authorization'];
+    
+    // Set optional error message
+    if (errorMessage) {
+      setError(errorMessage);
+    }
+    
+    // Redirect to login page
+    navigate('/login');
+  }, [navigate, setError, setIsAuthenticated, setToken, setUser]);
+  
+  // Regular logout function that uses forceLogout
+  const logout = useCallback(() => {
+    forceLogout();
+  }, [forceLogout]);
 
   // Configure axios with token and default settings
   useEffect(() => {
@@ -83,95 +110,138 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!token) return false;
     
     try {
-      const response = await api.get('/api/auth/me/');
-      setUser(response.data);
-      setIsAuthenticated(true);
-      return true;
-    } catch (error) {
+      console.log('Checking authentication status with token:', token ? '[TOKEN EXISTS]' : 'NO TOKEN');
+      // Use consistent endpoint format without /api/ prefix
+      const response = await api.get('/auth/me/');
+      
+      if (response.data) {
+        console.log('Authentication successful, user role:', response.data.role);
+        const normalizedUser = {
+          ...response.data,
+          role: response.data.role?.toUpperCase(),
+        };
+        setUser(normalizedUser);
+        setIsAuthenticated(true);
+        return true;
+      }
+      return false;
+    } catch (error: any) {
       console.error('Authentication check failed:', error);
-      setError('Session expired. Please log in again.');
+      // More specific error handling
+      if (error.message?.includes('Network Error')) {
+        forceLogout('Unable to connect to the server. Please check your connection.');
+      } else if (error.response?.status === 401) {
+        forceLogout('Session expired. Please log in again.');
+      } else {
+        forceLogout('Authentication failed. Please log in again.');
+      }
       return false;
     }
-  }, [token]);
+  }, [token, forceLogout]);
 
-  // Check authentication on mount
+  // Check authentication on mount and handle visibility changes
   useEffect(() => {
     const verifyToken = async () => {
       setLoading(true);
       const storedToken = localStorage.getItem('token');
+      console.log('Initial auth check with stored token:', storedToken ? '[TOKEN EXISTS]' : 'NO TOKEN');
       
       if (storedToken) {
         try {
-          await checkAuth();
+          setToken(storedToken); // Ensure token is set in state
+          const success = await checkAuth();
+          console.log('Initial auth check result:', success ? 'SUCCESS' : 'FAILED');
         } catch (error) {
           console.error('Token validation failed:', error);
-          // Clear invalid token
-          localStorage.removeItem('token');
-          setToken(null);
-          setUser(null);
-          setIsAuthenticated(false);
+          // Use forceLogout instead of manual cleanup
+          forceLogout('Your session has expired. Please log in again.');
         }
       }
       setLoading(false);
     };
     
     verifyToken();
-  }, [checkAuth]);
+    
+    // Add visibility change listener to refresh auth when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (!document.hidden && token) {
+        console.log('Tab became visible, refreshing authentication');
+        checkAuth();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [checkAuth, forceLogout, token]);
 
-  // Login function
-  const login = async (username: string, password: string): Promise<boolean> => {
+  // Login function wrapped in useCallback to prevent recreation on each render
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await api.post('/api/auth/token/', {
+      console.log(`Attempting login for user: ${username}`);
+      console.log('CSP/CORS debug: Sending request to /auth/token/ endpoint');
+      
+      // Remove /api/ prefix to avoid double prefixing since baseURL already includes it
+      const response = await api.post('/auth/token/', {
         username,
         password,
       });
 
       const { access } = response.data;
+      console.log('Login successful, received access token');
       
       // Set the token in state (which will trigger the useEffect)
       setToken(access);
       
-      // Fetch user data
-      const userResponse = await api.get('/api/auth/me/');
-      setUser(userResponse.data);
+      // Fetch user data with consistent endpoint format
+      console.log('Fetching user profile data');
+      const userResponse = await api.get('/auth/me/');
+      console.log('User data retrieved successfully, role:', userResponse.data.role);
+      const normalizedUser = {
+        ...userResponse.data,
+        role: userResponse.data.role?.toUpperCase(),
+      };
+      setUser(normalizedUser);
       setIsAuthenticated(true);
       
       navigate('/dashboard');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
-      setError('Invalid username or password');
+      // Provide more specific error messages based on the error type
+      if (error.message?.includes('Network Error')) {
+        setError('Unable to connect to the server. Please check your connection and try again.');
+      } else if (error.response?.status === 401) {
+        setError('Invalid username or password');
+      } else if (error.response?.status === 403) {
+        setError('CSRF verification failed. Please refresh the page and try again.');
+      } else {
+        setError('Login failed. Please try again later.');
+      }
+      setIsAuthenticated(false);
+      setLoading(false);
       throw error;
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, setError, setIsAuthenticated, setLoading, setToken, setUser]);
 
-  // Logout function
-  const logout = useCallback(() => {
-    // Clear token from state and localStorage
-    setToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
-    
-    // Clear any stored tokens
-    localStorage.removeItem('token');
-    
-    // Clear axios default headers
-    delete api.defaults.headers.common['Authorization'];
-    
-    // Redirect to login page
-    navigate('/login');
-  }, [navigate]);
+
 
   // Check user role
   const checkRole = useCallback((allowedRoles: UserRole[]): boolean => {
-    if (!user) return false;
-    return allowedRoles.includes(user.role);
-  }, [user]);
+    if (!user || !isAuthenticated) {
+      console.log('Role check failed: User not defined or not authenticated', { user, isAuthenticated });
+      return false;
+    }
+    
+    console.log(`Role check for ${user.username}: has role ${user.role}, checking against allowed roles:`, allowedRoles);
+    const hasRole = allowedRoles.includes(user.role);
+    console.log('Role check result:', hasRole ? 'AUTHORIZED' : 'UNAUTHORIZED');
+    return hasRole;
+  }, [user, isAuthenticated]);
 
   // Context value with proper typing
   const value: AuthState = useMemo(() => ({
@@ -180,13 +250,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     token,
     loading,
     error,
-    login: async (username: string, password: string) => {
-      try {
-        return await login(username, password);
-      } catch (error) {
-        throw error;
-      }
-    },
+    login,  // Use the login function directly since it's now wrapped in useCallback
     logout,
     checkAuth,
     checkRole,

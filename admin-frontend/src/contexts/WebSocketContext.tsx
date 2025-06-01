@@ -1,10 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import wsService, { ConnectionStatus, CheckInEvent } from '../services/websocket-new';
+import wsService, { ConnectionStatus, CheckInEvent } from '../services/websocket';
+
+interface CheckInStats {
+  currentlyIn: number;
+  todayTotal: number;
+  averageStayMinutes: number;
+}
 
 interface WebSocketContextType {
   isConnected: boolean;
   connectionStatus: ConnectionStatus;
   latestCheckIn: CheckInEvent | null;
+  initialStats: CheckInStats | null;
   sendMessage: <T = any>(event: string, data?: T) => Promise<void>;
   subscribe: <T = any>(
     event: string, 
@@ -22,30 +29,20 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [latestCheckIn, setLatestCheckIn] = useState<CheckInEvent | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [initialStats, setInitialStats] = useState<CheckInStats | null>(null);
 
-  // Monitor auth token changes and reconnect when token changes
-  // Re-enable WebSocket auto-connection for security improvements
+  // Initialize WebSocket connection only once
   useEffect(() => {
-    if (authToken) {
-      wsService.setAuthToken(authToken);
-      wsService.connect();
-      console.log('WebSocket connection secured with JWT token');
-    }
-  }, [authToken]);
-  
-  // Initial connection and subscription setup
-  useEffect(() => {
-    // Initialize WebSocket connection on component mount
+    if (isInitialized) return;
+
     const token = localStorage.getItem('token');
-    if (token && !authToken) {
+    if (token) {
       setAuthToken(token);
-    } else if (!token && !authToken) {
-      // Only connect for public resources if explicitly allowed
-      // For now, we require authentication for all WebSocket connections
-      console.log('Authentication required for WebSocket connections');
+      wsService.setAuthToken(token);
+      wsService.connect();
     }
-    
-    console.log('WebSocket security enhanced');
+    setIsInitialized(true);
 
     // Subscribe to connection status changes
     const unsubscribeStatus = wsService.subscribe<ConnectionStatus>(
@@ -56,6 +53,15 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
         setIsConnected(status === 'connected');
       },
       true
+    );
+
+    // Subscribe to initial stats message
+    const unsubscribeInitialStats = wsService.subscribe<CheckInStats>(
+      'initial_stats',
+      (stats) => {
+        console.log('Received initial stats:', stats);
+        setInitialStats(stats);
+      }
     );
 
     // Subscribe to check-in events
@@ -69,10 +75,26 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     // Cleanup on unmount
     return () => {
       unsubscribeStatus();
+      unsubscribeInitialStats();
       unsubscribeCheckIn();
-      wsService.disconnect();
+      // Don't disconnect on unmount, let the service handle reconnection
     };
-  }, []);
+  }, [isInitialized]);
+
+  // Handle auth token changes
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const currentToken = wsService.getAuthToken();
+    if (currentToken !== authToken) {
+      console.log('Auth token changed, updating WebSocket connection');
+      wsService.setAuthToken(authToken);
+      // Only reconnect if we have a new token
+      if (authToken) {
+        wsService.connect();
+      }
+    }
+  }, [authToken, isInitialized]);
 
   const sendMessage = async <T = any,>(event: string, data?: T): Promise<void> => {
     return wsService.send(event, data);
@@ -92,7 +114,6 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   
   const updateAuthToken = (token: string | null) => {
     setAuthToken(token);
-    wsService.setAuthToken(token);
   };
 
   return (
@@ -101,6 +122,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
         isConnected,
         connectionStatus,
         latestCheckIn,
+        initialStats,
         sendMessage,
         subscribe,
         reconnect,

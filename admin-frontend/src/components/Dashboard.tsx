@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import ExpiringMemberships from './notifications/ExpiringMemberships';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { CheckInEvent } from '../services/websocket-new';
+import { CheckInEvent } from '../services/websocket';
 import { ConnectionStatusIndicator } from './common/ConnectionStatusIndicator';
 import PeopleIcon from '@mui/icons-material/People';
 

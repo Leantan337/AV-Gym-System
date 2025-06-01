@@ -122,8 +122,17 @@ export const generateCSP = (): string => {
     `.replace(/\s+/g, ' ').trim();
   }
   
-  // More permissive CSP for development
-  return "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';";
+  // More permissive CSP for development while maintaining security
+  return `
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' 'unsafe-inline';
+    connect-src 'self' http://localhost:8000 ws://localhost:8000;
+    img-src 'self' data: https:;
+    font-src 'self' https://fonts.gstatic.com;
+    frame-src 'none';
+    object-src 'none';
+  `.replace(/\s+/g, ' ').trim();
 };
 
 // Rate limiting utilities

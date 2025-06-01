@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { CheckInEvent } from '../services/websocket-new';
+import { CheckInEvent } from '../services/websocket';
 
 export const useCheckIn = () => {
   const { sendMessage, subscribe, isConnected } = useWebSocket();

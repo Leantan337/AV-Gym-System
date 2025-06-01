@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { useWebSocket } from './WebSocketContext';
-import { CheckInEvent } from '../services/websocket-new';
+import { CheckInEvent } from '../services/websocket';
 
 interface CheckInContextType {
   checkIn: (memberId: string) => Promise<void>;

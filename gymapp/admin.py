@@ -6,6 +6,8 @@ from members.models import Member
 from plans.models import MembershipSubscription
 from invoices.models import Invoice
 from checkins.models import CheckIn
+from authentication.models import User
+from authentication.admin import UserAdmin
 
 class GymAdminSite(admin.AdminSite):
     site_header = 'AV Gym Management System'
@@ -121,3 +123,5 @@ gym_admin.register(CheckIn, CheckInAdmin)
 from invoices.admin import InvoiceAdmin
 from invoices.models import Invoice
 gym_admin.register(Invoice, InvoiceAdmin)
+
+gym_admin.register(User, UserAdmin)

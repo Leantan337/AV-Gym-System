@@ -1,4 +1,4 @@
-export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting';
+export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'authentication_failed';
 
 type MessageHandler<T = any> = (data: T) => void;
 
@@ -18,10 +18,12 @@ export interface WebSocketMessage<T = any> {
   payload: T;
 }
 
-const RECONNECT_DELAY = 1000; // 1 second
-const MAX_RECONNECT_ATTEMPTS = 5;
+export interface CheckInWebSocketEvent {
+  type: 'check_in' | 'check_out';
+  checkIn: CheckInEvent;
+}
 
-class WebSocketService {
+export class WebSocketService {
   private socket: WebSocket | null = null;
   private messageHandlers: Map<string, Set<MessageHandler>> = new Map();
   private reconnectAttempts = 0;
@@ -29,11 +31,34 @@ class WebSocketService {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
   private readonly PING_INTERVAL = 30000; // 30 seconds
-  private reconnectDelay = 1000; // 1 second
+  private authToken: string | null = null;
+  private messageBatcher = new MessageBatcher();
+  private pendingMessages: Array<{ event: string; data: any }> = [];
+  private manualReconnectTriggered = false;
+  private lastDisconnectTime: number = 0;
+  private readonly MIN_RECONNECT_DELAY = 1000; // 1 second
+  private readonly MAX_RECONNECT_DELAY = 30000; // 30 seconds
+  private readonly MAX_RECONNECT_ATTEMPTS = 5;
 
   constructor(private baseUrl: string) {}
 
-  connect() {
+  getAuthToken(): string | null {
+    return this.authToken;
+  }
+
+  setAuthToken(token: string | null) {
+    this.authToken = token;
+    
+    // Store the token securely (memory only, not localStorage)
+    
+    // If we're already connected, disconnect and reconnect with the new token
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.disconnect();
+      this.connect();
+    }
+  }
+
+  connect(manualReconnect = false) {
     if (this.socket) {
       if (this.socket.readyState === WebSocket.OPEN) return;
       this.disconnect();
@@ -42,48 +67,101 @@ class WebSocketService {
     try {
       this.connectionStatus = 'connecting';
       this.notifyConnectionStatusChange();
+      this.manualReconnectTriggered = manualReconnect;
       
       this.socket = new WebSocket(this.baseUrl);
 
       this.socket.onopen = () => {
         console.log('WebSocket connected');
         this.reconnectAttempts = 0;
+        this.lastDisconnectTime = 0;
+        
+        // Send authentication message immediately after connection
+        if (this.authToken && this.socket) {
+          this.socket.send(JSON.stringify({
+            type: 'authenticate',
+            payload: { token: this.authToken }
+          }));
+        }
+        
         this.connectionStatus = 'connected';
         this.notifyConnectionStatusChange();
         this.setupPing();
+        
+        // Set the socket for the message batcher
+        if (this.socket) {
+          this.messageBatcher.setSocket(this.socket);
+        }
+        
+        // Send any pending messages that were queued while disconnected
+        if (this.pendingMessages.length > 0) {
+          const messages = [...this.pendingMessages];
+          this.pendingMessages = [];
+          messages.forEach(msg => this.send(msg.event, msg.data));
+        }
       };
 
-    this.socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WebSocketMessage<any>;
-        const { type, payload } = message;
+      this.socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketMessage;
+          const { type, payload } = message;
 
-        // Handle ping-pong
-        if (type === 'pong') {
-          return;
+          // Handle ping-pong
+          if (type === 'pong') {
+            return;
+          }
+          
+          // Handle authentication response
+          if (type === 'auth_response') {
+            if (payload.success === false) {
+              console.error('WebSocket authentication failed:', payload.message);
+              this.connectionStatus = 'authentication_failed';
+              this.notifyConnectionStatusChange();
+              this.disconnect();
+              return;
+            }
+          }
+          
+          // Handle batched messages
+          if (type === 'batch' && payload.batches) {
+            Object.entries(payload.batches).forEach(([msgType, data]) => {
+              const handlers = this.messageHandlers.get(msgType);
+              if (handlers) {
+                // For each batch item, notify all handlers
+                (data as any[]).forEach(item => {
+                  handlers.forEach(handler => handler(item));
+                });
+              }
+            });
+            return;
+          }
+
+          const handlers = this.messageHandlers.get(type);
+          if (handlers) {
+            handlers.forEach(handler => handler(payload));
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
         }
+      };
 
-        const handlers = this.messageHandlers.get(type);
-        if (handlers && handlers.size > 0) {
-          handlers.forEach(handler => handler(payload));
+      this.socket.onclose = (event) => {
+        console.log(`WebSocket disconnected (code: ${event.code}, reason: ${event.reason})`);
+        this.lastDisconnectTime = Date.now();
+        this.connectionStatus = 'disconnected';
+        this.notifyConnectionStatusChange();
+        
+        // Only attempt to reconnect if it wasn't a clean close
+        if (event.code !== 1000) {
+          this.reconnect();
         }
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
-      }
-    };
+      };
 
-    this.socket.onclose = () => {
-      console.log('WebSocket disconnected');
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
-      this.reconnect();
-    };
-
-    this.socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
-    };
+      this.socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.connectionStatus = 'disconnected';
+        this.notifyConnectionStatusChange();
+      };
     } catch (error) {
       console.error('Error initializing WebSocket:', error);
       this.connectionStatus = 'disconnected';
@@ -91,60 +169,75 @@ class WebSocketService {
     }
   }
 
-  // Notify all connection status listeners
-  private notifyConnectionStatusChange() {
-    const handlers = this.messageHandlers.get('connection_status');
-    if (handlers && handlers.size > 0) {
-      handlers.forEach(handler => handler(this.connectionStatus));
-    }
-  }
-
-  // Get current connection status
-  getConnectionStatus(): ConnectionStatus {
-    if (!this.socket) return 'disconnected';
-    
-    switch (this.socket.readyState) {
-      case WebSocket.CONNECTING:
-        return 'connecting';
-      case WebSocket.OPEN:
-        return 'connected';
-      default:
-        return 'disconnected';
-    }
-  }
-  
   private setupPing() {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
     }
 
     this.pingInterval = setInterval(() => {
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(JSON.stringify({ type: 'ping' }));
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        try {
+          this.socket.send(JSON.stringify({ type: 'ping' }));
+        } catch (error) {
+          console.error('Error sending ping message:', error);
+          // If we can't send a ping, the connection might be dead
+          // but the browser hasn't detected it yet
+          this.disconnect();
+          this.connect();
+        }
       }
     }, this.PING_INTERVAL);
   }
 
   private reconnect() {
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnection attempts reached');
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    // Don't reconnect if we're already connected or if it's a manual disconnect
+    if (this.socket?.readyState === WebSocket.OPEN || this.manualReconnectTriggered) {
       return;
     }
 
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-
-    const delay = RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts);
-    this.reconnectAttempts++;
-
-    console.log(`Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${delay}ms`);
+    // Calculate delay with exponential backoff
+    const now = Date.now();
+    const timeSinceLastDisconnect = now - this.lastDisconnectTime;
+    const baseDelay = Math.min(
+      this.MIN_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts),
+      this.MAX_RECONNECT_DELAY
+    );
     
-    this.reconnectTimeout = setTimeout(() => {
-      this.connect();
-    }, Math.min(delay, 30000)); // Max 30s delay
+    // Add jitter to prevent thundering herd
+    const jitter = Math.random() * 1000;
+    const delay = Math.min(baseDelay + jitter, this.MAX_RECONNECT_DELAY);
+
+    // Only reconnect if we haven't exceeded max attempts
+    if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+      console.log(`Attempting to reconnect in ${Math.round(delay/1000)}s (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
+      
+      this.reconnectTimeout = setTimeout(() => {
+        this.reconnectAttempts++;
+        this.connect();
+      }, delay);
+    } else {
+      console.log('Max reconnection attempts reached');
+      this.connectionStatus = 'disconnected';
+      this.notifyConnectionStatusChange();
+    }
+  }
+  
+  // Method to manually trigger reconnection
+  public manualReconnect() {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      console.log('Already connected, no need to reconnect');
+      return;
+    }
+    
+    this.manualReconnectTriggered = true;
+    this.reconnectAttempts = 0;
+    this.disconnect();
+    this.connect(true);
   }
 
   subscribe<T = any>(
@@ -174,16 +267,30 @@ class WebSocketService {
     return new Promise((resolve, reject) => {
       if (this.socket?.readyState === WebSocket.OPEN) {
         try {
-          this.socket.send(JSON.stringify({ type: event, payload: data }));
-          resolve();
+          // Use message batching for high-volume events
+          if (['check_in_update', 'member_update', 'notification'].includes(event)) {
+            this.messageBatcher.add(event, data);
+            resolve();
+          } else {
+            // Send immediately for important events
+            this.socket.send(JSON.stringify({ type: event, data }));
+            resolve();
+          }
         } catch (error) {
           console.error('Error sending WebSocket message:', error);
           reject(error);
         }
       } else {
-        const error = new Error('WebSocket is not connected');
-        console.error(error);
-        reject(error);
+        // Queue message to be sent when connection is reestablished
+        if (['check_in', 'check_out'].includes(event)) {
+          console.log('WebSocket not connected, queueing message:', event);
+          this.pendingMessages.push({ event, data });
+          resolve(); // Resolve since we've queued it
+        } else {
+          const error = new Error('WebSocket is not connected');
+          console.error(error);
+          reject(error);
+        }
       }
     });
   }
@@ -200,29 +307,129 @@ class WebSocketService {
         this.reconnectTimeout = null;
       }
 
-      this.socket.close();
+      // Clean close with code 1000
+      this.socket.close(1000, 'Client disconnecting');
       this.socket = null;
       this.connectionStatus = 'disconnected';
       this.notifyConnectionStatusChange();
       this.messageHandlers.clear();
-    } else {
-      console.error('WebSocket is not connected');
+      this.manualReconnectTriggered = true;
     }
   }
-  
-  // Force a reconnection attempt
-  reconnectNow() {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+
+  private notifyConnectionStatusChange() {
+    // Log status changes for easier debugging
+    console.log(`WebSocket connection status changed to: ${this.connectionStatus}`);
+    
+    const handlers = this.messageHandlers.get('connection_status');
+    if (handlers) {
+      handlers.forEach(handler => handler(this.connectionStatus));
     }
-    this.reconnectAttempts = 0;
-    this.reconnectDelay = 1000;
-    this.connect();
+  }
+
+  getConnectionStatus(): ConnectionStatus {
+    if (!this.socket) return 'disconnected';
+    
+    switch (this.socket.readyState) {
+      case WebSocket.CONNECTING:
+        return 'connecting';
+      case WebSocket.OPEN:
+        return 'connected';
+      default:
+        return 'disconnected';
+    }
   }
 }
 
-// Create a singleton instance
-const wsService = new WebSocketService('ws://localhost:8000/ws/checkins/');
+// Message batching for high-volume scenarios
+interface BatchedMessage<T = any> {
+  type: string;
+  data: T;
+  timestamp: number;
+}
 
+class MessageBatcher {
+  private messages: BatchedMessage[] = [];
+  private batchTimeout: NodeJS.Timeout | null = null;
+  private readonly BATCH_INTERVAL = 100; // ms
+  private socket: WebSocket | null = null;
+
+  constructor() {}
+
+  setSocket(socket: WebSocket) {
+    this.socket = socket;
+  }
+
+  add<T = any>(type: string, data?: T) {
+    this.messages.push({
+      type,
+      data,
+      timestamp: Date.now()
+    });
+
+    if (!this.batchTimeout) {
+      this.scheduleBatch();
+    }
+  }
+
+  private scheduleBatch() {
+    this.batchTimeout = setTimeout(() => {
+      this.sendBatch();
+    }, this.BATCH_INTERVAL);
+  }
+
+  private sendBatch() {
+    if (this.socket?.readyState === WebSocket.OPEN && this.messages.length > 0) {
+      const batch = this.messages.slice();
+      this.messages = [];
+
+      // Group messages by type to reduce payload size
+      const groupedBatch = batch.reduce((acc, msg) => {
+        if (!acc[msg.type]) {
+          acc[msg.type] = [];
+        }
+        acc[msg.type].push(msg.data);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      try {
+        this.socket.send(JSON.stringify({
+          type: 'batch',
+          batches: groupedBatch
+        }));
+      } catch (error) {
+        console.error('Error sending batched messages:', error);
+      }
+    }
+
+    this.batchTimeout = null;
+
+    // If there are new messages that came in while sending, schedule another batch
+    if (this.messages.length > 0) {
+      this.scheduleBatch();
+    }
+  }
+
+  clear() {
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+    this.messages = [];
+    this.socket = null;
+  }
+}
+
+// Determine WebSocket URL based on environment
+const getWebSocketUrl = () => {
+  // Use secure WebSocket in production, regular in development
+  const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
+  const host = process.env.REACT_APP_API_HOST || 'localhost:8000';
+  return `${protocol}://${host}/ws/checkins/`;
+};
+
+// Create a singleton instance
+const wsService = new WebSocketService(getWebSocketUrl());
+
+// Export the singleton instance as default
 export default wsService;
