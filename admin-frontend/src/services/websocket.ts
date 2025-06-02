@@ -1,4 +1,4 @@
-export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'authentication_failed';
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed' | 'authentication_failed';
 
 type MessageHandler<T = any> = (data: T) => void;
 
@@ -31,10 +31,10 @@ export class WebSocketService {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
   private readonly PING_INTERVAL = 30000; // 30 seconds
-  private readonly HEARTBEAT_INTERVAL = 10000; // 10 seconds (reduced from 15s)
+  private readonly HEARTBEAT_INTERVAL = 10000; // 10 seconds
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private lastHeartbeatAck: number = 0;
-  private readonly HEARTBEAT_TIMEOUT = 15000; // 15 seconds (increased from 8s)
+  private readonly HEARTBEAT_TIMEOUT = 15000; // 15 seconds
   private readonly MAX_MISSED_HEARTBEATS = 2;
   private missedHeartbeats = 0;
   private authToken: string | null = null;
@@ -45,15 +45,33 @@ export class WebSocketService {
   private readonly MIN_RECONNECT_DELAY = 1000; // 1 second
   private readonly MAX_RECONNECT_DELAY = 30000; // 30 seconds
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private connectionStartTime: number = 0;
+  private readonly CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
 
-  constructor(private baseUrl: string) {}
+  constructor(private baseUrl: string) {
+    // Validate baseUrl
+    try {
+      new URL(baseUrl);
+    } catch (e) {
+      console.error('Invalid WebSocket base URL:', baseUrl);
+      throw new Error('Invalid WebSocket base URL');
+    }
+    // Initial connection attempt
+    this.connect(false, false);
+  }
 
   private getWebSocketUrl(): string {
-    const url = new URL(this.baseUrl);
-    if (this.authToken) {
-      url.searchParams.set('token', this.authToken);
+    try {
+      const url = new URL(this.baseUrl);
+      if (this.authToken) {
+        url.searchParams.set('token', this.authToken);
+      }
+      console.debug('WebSocket URL:', url.toString().replace(this.authToken || '', '[TOKEN]'));
+      return url.toString();
+    } catch (error) {
+      console.error('Error constructing WebSocket URL:', error);
+      throw new Error('Failed to construct WebSocket URL');
     }
-    return url.toString();
   }
 
   getAuthToken(): string | null {
@@ -62,17 +80,18 @@ export class WebSocketService {
 
   setAuthToken(token: string | null) {
     this.authToken = token;
-    
-    // Store the token securely (memory only, not localStorage)
-    
-    // If we're already connected, disconnect and reconnect with the new token
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    if (token) {
+      // If we have a token and we're not connected, try to connect
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        this.connect(false, false);
+      }
+    } else {
+      // If token is removed, disconnect
       this.disconnect();
-      this.connect();
     }
   }
 
-  connect(manualReconnect = false) {
+  connect(manualReconnect = false, reconnectAttempt = false) {
     if (this.socket) {
       if (this.socket.readyState === WebSocket.OPEN) {
         console.debug('WebSocket already connected, skipping connect');
@@ -83,16 +102,27 @@ export class WebSocketService {
     }
 
     try {
-      console.debug('Initiating WebSocket connection...');
+      console.debug(`Initiating WebSocket connection... (${reconnectAttempt ? 'reconnect attempt' : 'initial connection'})`);
       this.connectionStatus = 'connecting';
       this.notifyConnectionStatusChange();
       this.manualReconnectTriggered = manualReconnect;
       this.missedHeartbeats = 0;
+      this.connectionStartTime = Date.now();
+      
+      // Set connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (this.connectionStatus === 'connecting') {
+          console.error('WebSocket connection timeout');
+          this.handleConnectionError(new Error('Connection timeout'));
+        }
+      }, this.CONNECTION_TIMEOUT);
       
       this.socket = new WebSocket(this.getWebSocketUrl());
 
       this.socket.onopen = () => {
-        console.log('WebSocket connected successfully');
+        clearTimeout(connectionTimeout);
+        const connectionTime = Date.now() - this.connectionStartTime;
+        console.log(`WebSocket connected successfully in ${connectionTime}ms`);
         this.reconnectAttempts = 0;
         this.lastDisconnectTime = 0;
         this.missedHeartbeats = 0;
@@ -109,6 +139,7 @@ export class WebSocketService {
         this.connectionStatus = 'connected';
         this.notifyConnectionStatusChange();
         this.setupPing();
+        this.setupHeartbeat();
         
         // Set the socket for the message batcher
         if (this.socket) {
@@ -129,12 +160,25 @@ export class WebSocketService {
           const message = JSON.parse(event.data) as WebSocketMessage;
           const { type, payload } = message;
 
+          // Handle authentication response
+          if (type === 'authentication_success') {
+            console.log('WebSocket authentication successful');
+            return;
+          }
+
+          if (type === 'authentication_error') {
+            console.error('WebSocket authentication failed:', payload.message);
+            this.handleConnectionError(new Error('Authentication failed: ' + payload.message));
+            return;
+          }
+
           // Handle heartbeat_ack
           if (type === 'heartbeat_ack') {
             const now = Date.now();
             const timeSinceLastAck = now - this.lastHeartbeatAck;
             console.debug(`Received heartbeat ack after ${Math.round(timeSinceLastAck/1000)}s`);
             this.lastHeartbeatAck = now;
+            this.missedHeartbeats = 0;
             return;
           }
           
@@ -143,23 +187,11 @@ export class WebSocketService {
             return;
           }
           
-          // Handle authentication response
-          if (type === 'auth_response') {
-            if (payload.success === false) {
-              console.error('WebSocket authentication failed:', payload.message);
-              this.connectionStatus = 'authentication_failed';
-              this.notifyConnectionStatusChange();
-              this.disconnect();
-              return;
-            }
-          }
-          
           // Handle batched messages
           if (type === 'batch' && payload.batches) {
             Object.entries(payload.batches).forEach(([msgType, data]) => {
               const handlers = this.messageHandlers.get(msgType);
               if (handlers) {
-                // For each batch item, notify all handlers
                 (data as any[]).forEach(item => {
                   handlers.forEach(handler => handler(item));
                 });
@@ -178,26 +210,94 @@ export class WebSocketService {
       };
 
       this.socket.onclose = (event) => {
-        console.log(`WebSocket disconnected (code: ${event.code}, reason: ${event.reason})`);
+        clearTimeout(connectionTimeout);
+        const error = new Error(`WebSocket disconnected (code: ${event.code}, reason: ${event.reason || 'No reason provided'})`);
+        console.log(error.message);
+        
+        // Handle specific close codes
+        switch (event.code) {
+          case 1000: // Normal closure
+            console.log('WebSocket closed normally');
+            break;
+          case 1001: // Going away
+            console.log('WebSocket connection going away');
+            break;
+          case 1002: // Protocol error
+            console.error('WebSocket protocol error');
+            this.handleConnectionError(error);
+            break;
+          case 1003: // Unsupported data
+            console.error('WebSocket received unsupported data');
+            this.handleConnectionError(error);
+            break;
+          case 1005: // No status received
+            console.error('WebSocket closed with no status');
+            this.handleConnectionError(error);
+            break;
+          case 1006: // Abnormal closure
+            console.error('WebSocket closed abnormally');
+            this.handleConnectionError(error);
+            break;
+          case 1007: // Invalid frame payload data
+            console.error('WebSocket received invalid frame payload');
+            this.handleConnectionError(error);
+            break;
+          case 1008: // Policy violation
+            console.error('WebSocket policy violation');
+            this.handleConnectionError(error);
+            break;
+          case 1009: // Message too big
+            console.error('WebSocket message too big');
+            this.handleConnectionError(error);
+            break;
+          case 1010: // Missing extension
+            console.error('WebSocket missing extension');
+            this.handleConnectionError(error);
+            break;
+          case 1011: // Internal error
+            console.error('WebSocket internal error');
+            this.handleConnectionError(error);
+            break;
+          case 1012: // Service restart
+            console.log('WebSocket service restarting');
+            this.handleConnectionError(error);
+            break;
+          case 1013: // Try again later
+            console.log('WebSocket service unavailable, try again later');
+            this.handleConnectionError(error);
+            break;
+          case 1014: // Bad gateway
+            console.error('WebSocket bad gateway');
+            this.handleConnectionError(error);
+            break;
+          case 1015: // TLS handshake failure
+            console.error('WebSocket TLS handshake failed');
+            this.handleConnectionError(error);
+            break;
+          default:
+            console.error(`WebSocket closed with unexpected code: ${event.code}`);
+            this.handleConnectionError(error);
+        }
+
         this.lastDisconnectTime = Date.now();
         this.connectionStatus = 'disconnected';
         this.notifyConnectionStatusChange();
         
         // Only attempt to reconnect if it wasn't a clean close
         if (event.code !== 1000) {
-          this.reconnect();
+          this.reconnect(error);
         }
       };
 
-      this.socket.onerror = (error) => {
+      this.socket.onerror = (event) => {
+        clearTimeout(connectionTimeout);
+        const error = new Error('WebSocket error occurred');
         console.error('WebSocket error:', error);
-        this.connectionStatus = 'disconnected';
-        this.notifyConnectionStatusChange();
+        this.handleConnectionError(error);
       };
     } catch (error) {
       console.error('Error initializing WebSocket:', error);
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
+      this.handleConnectionError(error instanceof Error ? error : new Error('Unknown error during WebSocket initialization'));
     }
   }
 
@@ -217,7 +317,7 @@ export class WebSocketService {
           this.socket.send(JSON.stringify({ type: 'ping' }));
         } catch (error) {
           console.error('Error sending ping message:', error);
-          this.handleConnectionError();
+          this.handleConnectionError(error instanceof Error ? error : new Error('Error sending ping message'));
         }
       }
     }, this.PING_INTERVAL);
@@ -238,7 +338,7 @@ export class WebSocketService {
             
             if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
               console.error('Max missed heartbeats reached, reconnecting...');
-              this.handleConnectionError();
+              this.handleConnectionError(new Error('Max missed heartbeats reached'));
               return;
             }
           } else {
@@ -253,52 +353,107 @@ export class WebSocketService {
           }));
         } catch (error) {
           console.error('Error sending heartbeat:', error);
-          this.handleConnectionError();
+          this.handleConnectionError(error instanceof Error ? error : new Error('Error sending heartbeat'));
         }
       }
     }, this.HEARTBEAT_INTERVAL);
   }
 
-  private handleConnectionError() {
-    this.missedHeartbeats = 0;
-    this.disconnect();
-    this.connect();
+  private setupHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        const now = Date.now();
+        const timeSinceLastAck = now - this.lastHeartbeatAck;
+        
+        if (timeSinceLastAck > this.HEARTBEAT_TIMEOUT) {
+          this.missedHeartbeats++;
+          console.warn(`Missed heartbeat (${this.missedHeartbeats}/${this.MAX_MISSED_HEARTBEATS})`);
+          
+          if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
+            console.error('Too many missed heartbeats, reconnecting...');
+            this.handleConnectionError(new Error('Heartbeat timeout'));
+            return;
+          }
+        }
+
+        try {
+          this.socket.send(JSON.stringify({ type: 'heartbeat' }));
+        } catch (error) {
+          console.error('Error sending heartbeat:', error);
+          this.handleConnectionError(error instanceof Error ? error : new Error('Error sending heartbeat'));
+        }
+      }
+    }, this.HEARTBEAT_INTERVAL);
   }
 
-  private reconnect() {
+  private handleConnectionError(error: any) {
+    console.error('WebSocket connection error:', error);
+    this.connectionStatus = 'disconnected';
+    this.notifyConnectionStatusChange();
+    
+    // Clean up any existing connection
+    if (this.socket) {
+      try {
+        this.socket.close(1000, 'Connection error');
+      } catch (e) {
+        console.error('Error closing socket during error handling:', e);
+      }
+      this.socket = null;
+    }
+    
+    // Clear intervals
+    this.clearIntervals();
+    
+    // Attempt to reconnect if appropriate
+    if (!this.manualReconnectTriggered) {
+      this.reconnect(error);
+    }
+  }
+
+  private clearIntervals() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+  }
 
-    // Don't reconnect if we're already connected or if it's a manual disconnect
-    if (this.socket?.readyState === WebSocket.OPEN || this.manualReconnectTriggered) {
+  private reconnect(error?: any) {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+      console.error('Max reconnection attempts reached', error);
+      this.connectionStatus = 'failed';
+      this.notifyConnectionStatusChange();
       return;
     }
 
-    // Calculate delay with exponential backoff
-    const baseDelay = Math.min(
-      this.MIN_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts),
-      this.MAX_RECONNECT_DELAY
+    const now = Date.now();
+    const timeSinceLastDisconnect = now - this.lastDisconnectTime;
+    const delay = Math.min(
+      this.MAX_RECONNECT_DELAY,
+      Math.max(this.MIN_RECONNECT_DELAY, timeSinceLastDisconnect)
     );
-    
-    // Add jitter to prevent thundering herd
-    const jitter = Math.random() * 1000;
-    const delay = Math.min(baseDelay + jitter, this.MAX_RECONNECT_DELAY);
 
-    // Only reconnect if we haven't exceeded max attempts
-    if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-      console.log(`Attempting to reconnect in ${Math.round(delay/1000)}s (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
-      
-      this.reconnectTimeout = setTimeout(() => {
-        this.reconnectAttempts++;
-        this.connect();
-      }, delay);
-    } else {
-      console.log('Max reconnection attempts reached');
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
-    }
+    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`, error);
+    
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectAttempts++;
+      this.connect(false, true);
+    }, delay);
   }
   
   // Method to manually trigger reconnection
@@ -371,28 +526,16 @@ export class WebSocketService {
 
   disconnect() {
     if (this.socket) {
-      if (this.pingInterval) {
-        clearInterval(this.pingInterval);
-        this.pingInterval = null;
+      try {
+        this.socket.close(1000, 'Manual disconnect');
+      } catch (error) {
+        console.error('Error during disconnect:', error);
       }
-      if (this.heartbeatInterval) {
-        clearInterval(this.heartbeatInterval);
-        this.heartbeatInterval = null;
-      }
-      
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = null;
-      }
-
-      // Clean close with code 1000
-      this.socket.close(1000, 'Client disconnecting');
       this.socket = null;
-      this.connectionStatus = 'disconnected';
-      this.notifyConnectionStatusChange();
-      this.messageHandlers.clear();
-      this.manualReconnectTriggered = true;
     }
+    this.clearIntervals();
+    this.connectionStatus = 'disconnected';
+    this.notifyConnectionStatusChange();
   }
 
   private notifyConnectionStatusChange() {

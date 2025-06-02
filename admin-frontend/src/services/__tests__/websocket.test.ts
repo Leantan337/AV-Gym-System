@@ -1,71 +1,39 @@
-// Import the service and its class
-import wsService, { WebSocketService } from '../websocket';
+// Import the service and its types
+import wsService, { WebSocketService, ConnectionStatus } from '../websocket';
 
-// Mock WebSocket
-class MockWebSocket {
-  url: string;
-  readyState: number = 0; // CONNECTING by default
-  onopen: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onclose: ((event: CloseEvent) => void) | null = null;
-  onerror: ((event: Event) => void) | null = null;
-  
-  // WebSocket readyState constants
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSING = 2;
-  static readonly CLOSED = 3;
-  
+// Mock WebSocket class for testing
+class MockWebSocket extends WebSocket {
   constructor(url: string) {
-    this.url = url;
+    super(url);
   }
-  
-  send(data: string): void {
-    // Mock implementation
-    console.log('MockWebSocket.send called with', data);
+
+  simulateOpen() {
+    if (this.onopen) this.onopen(new Event('open'));
   }
-  
-  close(code: number = 1000, reason: string = 'Normal closure'): void {
-    this.readyState = MockWebSocket.CLOSED;
-    if (this.onclose) {
-      const event = new CloseEvent('close', { code, reason });
-      this.onclose(event);
-    }
-  }
-  
-  // Helper methods for testing
-  simulateOpen(): void {
-    this.readyState = MockWebSocket.OPEN;
-    if (this.onopen) {
-      const event = new Event('open');
-      this.onopen(event);
-    }
-  }
-  
-  simulateMessage(data: any): void {
+
+  simulateMessage(data: any) {
     if (this.onmessage) {
-      const event = new MessageEvent('message', {
+      this.onmessage(new MessageEvent('message', {
         data: JSON.stringify(data)
-      });
-      this.onmessage(event);
+      }));
     }
   }
-  
-  simulateError(error: any): void {
-    if (this.onerror) {
-      const event = new Event('error');
-      this.onerror(event);
-    }
+
+  simulateError(error: Error) {
+    if (this.onerror) this.onerror(new ErrorEvent('error', { error }));
   }
-  
-  simulateClose(code: number = 1000, reason: string = 'Normal closure'): void {
-    this.readyState = MockWebSocket.CLOSED;
+
+  simulateClose(code = 1000, reason = '') {
     if (this.onclose) {
-      const event = new CloseEvent('close', { code, reason });
-      this.onclose(event);
+      this.onclose(new CloseEvent('close', { code, reason }));
     }
   }
 }
+
+// Add test helper to access private properties
+const getPrivateProperty = <T>(obj: any, prop: string): T => {
+  return (obj as any)[prop];
+};
 
 // Mock the global WebSocket
 global.WebSocket = MockWebSocket as any;
@@ -86,6 +54,7 @@ afterAll(() => {
 
 describe('WebSocketService', () => {
   let wsService: WebSocketService;
+  let mockSocket: MockWebSocket;
   let mockConsoleError: jest.SpyInstance;
   let mockConsoleLog: jest.SpyInstance;
   
@@ -95,7 +64,9 @@ describe('WebSocketService', () => {
     mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
     
     // Create a new instance for each test
-    wsService = new WebSocketService('ws://test-url/');
+    wsService = new WebSocketService('ws://localhost:8000/ws/checkins/');
+    // Create a mock socket that we can control
+    mockSocket = new MockWebSocket('ws://localhost:8000/ws/checkins/');
   });
   
   afterEach(() => {
@@ -105,45 +76,65 @@ describe('WebSocketService', () => {
     jest.clearAllTimers();
   });
   
-  describe('connect', () => {
-    it('should initialize WebSocket connection', () => {
-      wsService.connect();
+  describe('connection management', () => {
+    it('should connect successfully', () => {
+      // Mock the WebSocket constructor
+      (global as any).WebSocket = jest.fn(() => mockSocket);
       
-      expect(wsService.socket).toBeInstanceOf(MockWebSocket);
-      expect(wsService.socket.url).toBe('ws://test-url/');
-      expect(wsService.connectionStatus).toBe('connecting');
+      wsService.connect(false, false);
+      mockSocket.simulateOpen();
+      
+      const status = getPrivateProperty<ConnectionStatus>(wsService, 'connectionStatus');
+      expect(status).toBe('connected');
     });
-    
-    it('should set connection status to connected when socket opens', () => {
-      wsService.connect();
-      (wsService.socket as MockWebSocket).simulateOpen();
+
+    it('should handle connection errors', () => {
+      (global as any).WebSocket = jest.fn(() => mockSocket);
       
-      expect(wsService.connectionStatus).toBe('connected');
+      wsService.connect(false, false);
+      mockSocket.simulateError(new Error('Connection failed'));
+      
+      const status = getPrivateProperty<ConnectionStatus>(wsService, 'connectionStatus');
+      expect(status).toBe('disconnected');
     });
-    
-    it('should handle auth token in connection URL', () => {
-      wsService.setAuthToken('test-token');
-      wsService.connect();
+
+    it('should handle manual reconnection', () => {
+      (global as any).WebSocket = jest.fn(() => mockSocket);
       
-      expect(wsService.socket.url).toBe('ws://test-url/?token=test-token');
+      wsService.connect(true, false);
+      mockSocket.simulateOpen();
+      
+      const status = getPrivateProperty<ConnectionStatus>(wsService, 'connectionStatus');
+      expect(status).toBe('connected');
     });
-    
-    it('should not reconnect if already connected', () => {
-      wsService.connect();
-      const socket = wsService.socket;
-      (wsService.socket as MockWebSocket).simulateOpen();
+
+    it('should handle automatic reconnection', () => {
+      (global as any).WebSocket = jest.fn(() => mockSocket);
       
-      wsService.connect();
+      wsService.connect(false, true);
+      mockSocket.simulateOpen();
       
-      // Should still be the same socket instance
-      expect(wsService.socket).toBe(socket);
+      const status = getPrivateProperty<ConnectionStatus>(wsService, 'connectionStatus');
+      expect(status).toBe('connected');
+    });
+
+    it('should handle connection timeout', () => {
+      (global as any).WebSocket = jest.fn(() => mockSocket);
+      
+      wsService.connect(false, false);
+      // Simulate timeout by not calling simulateOpen
+      jest.advanceTimersByTime(getPrivateProperty<number>(wsService, 'CONNECTION_TIMEOUT'));
+      
+      const status = getPrivateProperty<ConnectionStatus>(wsService, 'connectionStatus');
+      expect(status).toBe('disconnected');
     });
   });
   
   describe('message handling', () => {
     beforeEach(() => {
-      wsService.connect();
-      (wsService.socket as MockWebSocket).simulateOpen();
+      (global as any).WebSocket = jest.fn(() => mockSocket);
+      wsService.connect(false, false);
+      mockSocket.simulateOpen();
     });
     
     it('should handle ping-pong messages', () => {

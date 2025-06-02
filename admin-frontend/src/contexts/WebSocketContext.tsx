@@ -40,7 +40,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     if (token) {
       setAuthToken(token);
       wsService.setAuthToken(token);
-      wsService.connect();
+      wsService.connect(false, false);
     }
     setIsInitialized(true);
 
@@ -91,7 +91,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
       wsService.setAuthToken(authToken);
       // Only reconnect if we have a new token
       if (authToken) {
-        wsService.connect();
+        wsService.connect(false, false);
       }
     }
   }, [authToken, isInitialized]);
@@ -109,7 +109,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
   
   const reconnect = () => {
-    wsService.manualReconnect();
+    wsService.connect(true, false);
   };
   
   const updateAuthToken = (token: string | null) => {

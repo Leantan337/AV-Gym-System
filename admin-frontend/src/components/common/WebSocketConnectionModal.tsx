@@ -23,10 +23,12 @@ const WebSocketConnectionModal: React.FC = () => {
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const disconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const DISCONNECT_MODAL_DELAY = 2000; // 2 seconds delay before showing the modal
+  const [userCancelled, setUserCancelled] = useState(false);
 
-  // Show dialog when connection is lost
+  // Show dialog when connection is lost or restored
   useEffect(() => {
-    // Clear any existing timeouts
+    console.debug('useEffect [connectionStatus, userCancelled] triggered', { connectionStatus, open, userCancelled, attempting, disconnectTimerRef: !!disconnectTimerRef.current });
+    // Clear any pending timeouts when status changes
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -36,38 +38,49 @@ const WebSocketConnectionModal: React.FC = () => {
         disconnectTimerRef.current = null;
     }
 
-    if (connectionStatus === 'disconnected') {
-      // Start a timer to show the modal after a delay
-      disconnectTimerRef.current = setTimeout(() => {
-        setOpen(true);
-      }, DISCONNECT_MODAL_DELAY);
+    if (connectionStatus === 'disconnected' || connectionStatus === 'failed') {
+      // If disconnected or failed, show the modal after a delay unless user cancelled
+      if (!userCancelled) {
+        console.debug('Status is disconnected/failed and not user cancelled, setting disconnect timer...');
+        disconnectTimerRef.current = setTimeout(() => {
+          console.debug('Disconnect timer fired, setting open(true)');
+          setOpen(true);
+          setAttempting(false); // Not attempting automatically when first disconnected
+          setAttemptCount(0); // Reset attempt count when disconnected
+        }, DISCONNECT_MODAL_DELAY);
+      } else {
+        console.debug('Status is disconnected/failed but user cancelled. Not showing modal.');
+      }
 
     } else if (connectionStatus === 'connected') {
-      // Close dialog after successful reconnection and show brief success message
-      if (open && attempting) {
-        // Show success for 1.5 seconds before closing
-        closeTimeoutRef.current = setTimeout(() => {
-          setOpen(false);
-          setAttempting(false);
-          setAttemptCount(0);
-        }, 1500);
-      } else {
-        // Ensure dialog is closed when connected
-        setOpen(false);
-        setAttempting(false); // Ensure attempting is false if connected without a prior attempt
-        setAttemptCount(0);
-      }
-    } else if (connectionStatus === 'connecting') {
-        // If modal is not already open, don't open it immediately, wait for disconnected
-        // If modal is open (e.g. from a previous disconnected state), keep it open
-        if (!open) {
-            // Do nothing, wait for disconnected state to trigger the delayed open
+      // If connected, close the modal and reset flags
+      console.debug('Status is connected, closing modal if open and resetting flags.', { open, attempting, userCancelled });
+      if (open) {
+        // Show success message briefly if a reconnect was attempted
+        if (attempting) {
+          closeTimeoutRef.current = setTimeout(() => {
+            setOpen(false);
+          }, 1500); // Show success for 1.5 seconds
         } else {
-             // Keep modal open but maybe show connecting state
-             setOpen(true);
+           setOpen(false);
         }
+      }
+      // Reset attempting and userCancelled flags
+      setAttempting(false);
+      setUserCancelled(false);
+      setAttemptCount(0);
+
+    } else if (connectionStatus === 'connecting') {
+       // If connecting, and modal is open (e.g., from a failed state), keep it open but update text
+       // If modal is not open, don't open it yet, wait for disconnected/failed
+       if (open) {
+         setAttempting(true); // Indicate attempt is in progress
+       } else {
+         // Do nothing, wait for disconnected/failed state to trigger the modal
+         setAttempting(false);
+       }
     }
-  }, [connectionStatus, open, attempting]);
+  }, [connectionStatus, userCancelled]); // Depend only on connectionStatus and userCancelled
 
   // Clear timeouts on unmount
   useEffect(() => {
@@ -98,26 +111,41 @@ const WebSocketConnectionModal: React.FC = () => {
   }, [open]);
 
   const handleCancel = () => {
-    console.log('Dialog cancel requested');
+    console.debug('handleCancel called', { connectionStatus, open, userCancelled, attempting, attemptCount });
     // Clear any pending disconnect timer if modal is cancelled before it shows
     if (disconnectTimerRef.current) {
         clearTimeout(disconnectTimerRef.current);
         disconnectTimerRef.current = null;
     }
+    
+    // Set userCancelled flag to prevent immediate re-opening
+    setUserCancelled(true);
+    
+    // Only close the dialog, don't affect the connection state
     setOpen(false);
-    setAttempting(false);
-    setAttemptCount(0);
+    
+    // If we're in a connecting state, let it continue
+    if (connectionStatus === 'connecting') {
+      console.log('Connection attempt in progress, allowing it to continue');
+      return;
+    }
     
     // If we've been trying for too long, force a reset of the connection
     if (attemptCount > 3) {
+      console.log('Too many reconnection attempts, forcing page reload');
       // Small delay to ensure the modal closes first
       setTimeout(() => {
         window.location.reload();
       }, 100);
+    } else {
+      // Reset attempt count but don't disconnect
+      setAttemptCount(0);
+      setAttempting(false);
     }
   };
 
   const handleReconnect = () => {
+    console.debug('handleReconnect called', { connectionStatus, open, userCancelled, attempting, attemptCount });
     setAttempting(true);
     setAttemptCount(prev => prev + 1);
     reconnect();

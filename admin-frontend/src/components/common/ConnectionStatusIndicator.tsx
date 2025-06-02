@@ -47,6 +47,12 @@ export const ConnectionStatusIndicator: React.FC = () => {
       color: 'error' as const,
       icon: <ErrorIcon fontSize="small" />,
       tooltip: 'WebSocket authentication failed. Click for details'
+    },
+    failed: {
+      label: 'Connection Failed',
+      color: 'error' as const,
+      icon: <ErrorIcon fontSize="small" />,
+      tooltip: 'WebSocket connection failed after multiple attempts. Click to reconnect'
     }
   };
 
