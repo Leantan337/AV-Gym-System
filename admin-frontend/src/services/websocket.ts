@@ -31,6 +31,12 @@ export class WebSocketService {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
   private readonly PING_INTERVAL = 30000; // 30 seconds
+  private readonly HEARTBEAT_INTERVAL = 10000; // 10 seconds (reduced from 15s)
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private lastHeartbeatAck: number = 0;
+  private readonly HEARTBEAT_TIMEOUT = 15000; // 15 seconds (increased from 8s)
+  private readonly MAX_MISSED_HEARTBEATS = 2;
+  private missedHeartbeats = 0;
   private authToken: string | null = null;
   private messageBatcher = new MessageBatcher();
   private pendingMessages: Array<{ event: string; data: any }> = [];
@@ -41,6 +47,14 @@ export class WebSocketService {
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
 
   constructor(private baseUrl: string) {}
+
+  private getWebSocketUrl(): string {
+    const url = new URL(this.baseUrl);
+    if (this.authToken) {
+      url.searchParams.set('token', this.authToken);
+    }
+    return url.toString();
+  }
 
   getAuthToken(): string | null {
     return this.authToken;
@@ -60,24 +74,32 @@ export class WebSocketService {
 
   connect(manualReconnect = false) {
     if (this.socket) {
-      if (this.socket.readyState === WebSocket.OPEN) return;
+      if (this.socket.readyState === WebSocket.OPEN) {
+        console.debug('WebSocket already connected, skipping connect');
+        return;
+      }
+      console.debug('WebSocket exists but not open, disconnecting first');
       this.disconnect();
     }
 
     try {
+      console.debug('Initiating WebSocket connection...');
       this.connectionStatus = 'connecting';
       this.notifyConnectionStatusChange();
       this.manualReconnectTriggered = manualReconnect;
+      this.missedHeartbeats = 0;
       
-      this.socket = new WebSocket(this.baseUrl);
+      this.socket = new WebSocket(this.getWebSocketUrl());
 
       this.socket.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('WebSocket connected successfully');
         this.reconnectAttempts = 0;
         this.lastDisconnectTime = 0;
+        this.missedHeartbeats = 0;
         
         // Send authentication message immediately after connection
         if (this.authToken && this.socket) {
+          console.debug('Sending authentication message...');
           this.socket.send(JSON.stringify({
             type: 'authenticate',
             payload: { token: this.authToken }
@@ -95,6 +117,7 @@ export class WebSocketService {
         
         // Send any pending messages that were queued while disconnected
         if (this.pendingMessages.length > 0) {
+          console.debug(`Sending ${this.pendingMessages.length} pending messages`);
           const messages = [...this.pendingMessages];
           this.pendingMessages = [];
           messages.forEach(msg => this.send(msg.event, msg.data));
@@ -106,6 +129,15 @@ export class WebSocketService {
           const message = JSON.parse(event.data) as WebSocketMessage;
           const { type, payload } = message;
 
+          // Handle heartbeat_ack
+          if (type === 'heartbeat_ack') {
+            const now = Date.now();
+            const timeSinceLastAck = now - this.lastHeartbeatAck;
+            console.debug(`Received heartbeat ack after ${Math.round(timeSinceLastAck/1000)}s`);
+            this.lastHeartbeatAck = now;
+            return;
+          }
+          
           // Handle ping-pong
           if (type === 'pong') {
             return;
@@ -173,20 +205,64 @@ export class WebSocketService {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
     }
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
 
+    // Setup regular ping (keep existing ping for compatibility)
     this.pingInterval = setInterval(() => {
       if (this.socket?.readyState === WebSocket.OPEN) {
         try {
+          console.debug('Sending ping...');
           this.socket.send(JSON.stringify({ type: 'ping' }));
         } catch (error) {
           console.error('Error sending ping message:', error);
-          // If we can't send a ping, the connection might be dead
-          // but the browser hasn't detected it yet
-          this.disconnect();
-          this.connect();
+          this.handleConnectionError();
         }
       }
     }, this.PING_INTERVAL);
+
+    // Setup heartbeat
+    this.lastHeartbeatAck = Date.now(); // Initialize with current time
+    this.missedHeartbeats = 0;
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        try {
+          const now = Date.now();
+          const timeSinceLastAck = now - this.lastHeartbeatAck;
+          
+          // Check if we haven't received a heartbeat ack in time
+          if (timeSinceLastAck > this.HEARTBEAT_TIMEOUT) {
+            this.missedHeartbeats++;
+            console.warn(`No heartbeat ack received for ${Math.round(timeSinceLastAck/1000)}s (timeout: ${this.HEARTBEAT_TIMEOUT/1000}s), missed: ${this.missedHeartbeats}/${this.MAX_MISSED_HEARTBEATS}`);
+            
+            if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
+              console.error('Max missed heartbeats reached, reconnecting...');
+              this.handleConnectionError();
+              return;
+            }
+          } else {
+            // Reset missed heartbeats if we're within timeout
+            this.missedHeartbeats = 0;
+          }
+
+          console.debug(`Sending heartbeat... (last ack: ${Math.round(timeSinceLastAck/1000)}s ago)`);
+          this.socket.send(JSON.stringify({ 
+            type: 'heartbeat',
+            timestamp: now
+          }));
+        } catch (error) {
+          console.error('Error sending heartbeat:', error);
+          this.handleConnectionError();
+        }
+      }
+    }, this.HEARTBEAT_INTERVAL);
+  }
+
+  private handleConnectionError() {
+    this.missedHeartbeats = 0;
+    this.disconnect();
+    this.connect();
   }
 
   private reconnect() {
@@ -201,8 +277,6 @@ export class WebSocketService {
     }
 
     // Calculate delay with exponential backoff
-    const now = Date.now();
-    const timeSinceLastDisconnect = now - this.lastDisconnectTime;
     const baseDelay = Math.min(
       this.MIN_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts),
       this.MAX_RECONNECT_DELAY
@@ -301,6 +375,10 @@ export class WebSocketService {
         clearInterval(this.pingInterval);
         this.pingInterval = null;
       }
+      if (this.heartbeatInterval) {
+        clearInterval(this.heartbeatInterval);
+        this.heartbeatInterval = null;
+      }
       
       if (this.reconnectTimeout) {
         clearTimeout(this.reconnectTimeout);
@@ -353,8 +431,6 @@ class MessageBatcher {
   private batchTimeout: NodeJS.Timeout | null = null;
   private readonly BATCH_INTERVAL = 100; // ms
   private socket: WebSocket | null = null;
-
-  constructor() {}
 
   setSocket(socket: WebSocket) {
     this.socket = socket;

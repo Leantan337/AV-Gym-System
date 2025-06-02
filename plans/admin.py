@@ -35,11 +35,15 @@ class MembershipSubscriptionAdmin(admin.ModelAdmin):
     def days_remaining(self, obj):
         if obj.status != 'active':
             return '-'
-        days = (obj.end_date - obj.start_date.date()).days
-        color = 'green' if days > 7 else 'orange' if days > 0 else 'red'
-        return format_html(
-            '<span style="color: {}">{} days</span>',
-            color,
-            days
-        )
+        if obj.end_date and obj.start_date:
+            end_date = obj.end_date.date() if hasattr(obj.end_date, 'date') else obj.end_date
+            days = (obj.end_date - obj.start_date).days
+            if days < 0:
+                return "Expired"
+            color = 'green' if days > 7 else 'orange' if days > 0 else 'red'
+            return format_html(
+                '<span style="color: {}">{} days</span>',
+                color,
+                days
+            )
     days_remaining.short_description = 'Days Remaining'

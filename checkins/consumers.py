@@ -64,6 +64,15 @@ class CheckInConsumer(AsyncWebsocketConsumer):
             data = json.loads(text_data)
             event_type = data.get('type')
             
+            # Handle heartbeat before authentication check
+            if event_type == 'heartbeat':
+                # Respond to heartbeat with a heartbeat_ack
+                await self.send(json.dumps({
+                    'type': 'heartbeat_ack',
+                    'timestamp': timezone.now().isoformat()
+                }))
+                return
+            
             if event_type == 'authenticate':
                 # Handle authentication message
                 token = data.get('payload', {}).get('token')

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BarcodeScanner } from '../BarcodeScanner';
 import { ManualEntryForm } from '../ManualEntryForm';
@@ -66,19 +66,28 @@ describe('ManualEntryForm', () => {
     render(<ManualEntryForm onSubmit={mockOnSubmit} />);
 
     const searchInput = screen.getByPlaceholderText(/start typing/i);
-    await userEvent.type(searchInput, 'john');
+    
+    // Wrap the typing action in act()
+    await act(async () => {
+      await userEvent.type(searchInput, 'john', { delay: 100 });
+    });
 
+    // Wait for the API call
     await waitFor(() => {
       expect(searchMembers).toHaveBeenCalledWith('john');
-    });
+    }, { timeout: 3000 });
 
     // Wait for and select a member from dropdown
     const memberOption = await screen.findByText(/John Doe/);
-    await userEvent.click(memberOption);
+    await act(async () => {
+      await userEvent.click(memberOption);
+    });
 
     // Submit form
     const submitButton = screen.getByRole('button', { name: /check in/i });
-    await userEvent.click(submitButton);
+    await act(async () => {
+      await userEvent.click(submitButton);
+    });
 
     expect(mockOnSubmit).toHaveBeenCalledWith('1');
   });
@@ -89,10 +98,15 @@ describe('ManualEntryForm', () => {
     render(<ManualEntryForm onSubmit={mockOnSubmit} />);
 
     const searchInput = screen.getByPlaceholderText(/start typing/i);
-    await userEvent.type(searchInput, 'error');
+    
+    // Wrap the typing action in act()
+    await act(async () => {
+      await userEvent.type(searchInput, 'error', { delay: 100 });
+    });
 
+    // Wait for all state updates to complete
     await waitFor(() => {
       expect(screen.getByText(/no members found/i)).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 });

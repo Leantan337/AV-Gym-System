@@ -5,10 +5,10 @@ import wsService, { WebSocketService } from '../websocket';
 class MockWebSocket {
   url: string;
   readyState: number = 0; // CONNECTING by default
-  onopen: (() => void) | null = null;
-  onmessage: ((event: any) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: ((error: any) => void) | null = null;
+  onopen: ((event: Event) => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onclose: ((event: CloseEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
   
   // WebSocket readyState constants
   static readonly CONNECTING = 0;
@@ -25,10 +25,11 @@ class MockWebSocket {
     console.log('MockWebSocket.send called with', data);
   }
   
-  close(): void {
+  close(code: number = 1000, reason: string = 'Normal closure'): void {
     this.readyState = MockWebSocket.CLOSED;
     if (this.onclose) {
-      this.onclose();
+      const event = new CloseEvent('close', { code, reason });
+      this.onclose(event);
     }
   }
   
@@ -36,38 +37,55 @@ class MockWebSocket {
   simulateOpen(): void {
     this.readyState = MockWebSocket.OPEN;
     if (this.onopen) {
-      this.onopen();
+      const event = new Event('open');
+      this.onopen(event);
     }
   }
   
   simulateMessage(data: any): void {
     if (this.onmessage) {
-      this.onmessage({ data: JSON.stringify(data) });
+      const event = new MessageEvent('message', {
+        data: JSON.stringify(data)
+      });
+      this.onmessage(event);
     }
   }
   
   simulateError(error: any): void {
     if (this.onerror) {
-      this.onerror(error);
+      const event = new Event('error');
+      this.onerror(event);
     }
   }
   
-  simulateClose(): void {
+  simulateClose(code: number = 1000, reason: string = 'Normal closure'): void {
     this.readyState = MockWebSocket.CLOSED;
     if (this.onclose) {
-      this.onclose();
+      const event = new CloseEvent('close', { code, reason });
+      this.onclose(event);
     }
   }
 }
 
-// Mock global WebSocket
+// Mock the global WebSocket
 global.WebSocket = MockWebSocket as any;
 
-// Mock setTimeout and clearTimeout
-jest.useFakeTimers();
+// Mock console methods
+const originalConsole = { ...console };
+beforeAll(() => {
+  console.log = jest.fn();
+  console.error = jest.fn();
+  console.debug = jest.fn();
+});
+
+afterAll(() => {
+  console.log = originalConsole.log;
+  console.error = originalConsole.error;
+  console.debug = originalConsole.debug;
+});
 
 describe('WebSocketService', () => {
-  let wsService: any; // Using any to access private members for testing
+  let wsService: WebSocketService;
   let mockConsoleError: jest.SpyInstance;
   let mockConsoleLog: jest.SpyInstance;
   

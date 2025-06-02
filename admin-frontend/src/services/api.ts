@@ -5,7 +5,7 @@ import { applySecurityHeaders, checkRateLimit, sanitizeInput } from '../utils/se
 // Determine API URL based on environment
 const getApiBaseUrl = () => {
   // Use environment variable if set, otherwise default to Django's development server
-  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8001';
+  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 }; 
 
 // Create axios instance with base configuration

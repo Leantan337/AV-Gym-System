@@ -21,17 +21,27 @@ const WebSocketConnectionModal: React.FC = () => {
   const [attempting, setAttempting] = useState(false);
   const [attemptCount, setAttemptCount] = useState(0);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const disconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const DISCONNECT_MODAL_DELAY = 2000; // 2 seconds delay before showing the modal
 
   // Show dialog when connection is lost
   useEffect(() => {
-    // Clear any existing timeout
+    // Clear any existing timeouts
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
+    if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+    }
 
     if (connectionStatus === 'disconnected') {
-      setOpen(true);
+      // Start a timer to show the modal after a delay
+      disconnectTimerRef.current = setTimeout(() => {
+        setOpen(true);
+      }, DISCONNECT_MODAL_DELAY);
+
     } else if (connectionStatus === 'connected') {
       // Close dialog after successful reconnection and show brief success message
       if (open && attempting) {
@@ -48,16 +58,25 @@ const WebSocketConnectionModal: React.FC = () => {
         setAttemptCount(0);
       }
     } else if (connectionStatus === 'connecting') {
-        // Keep modal open but maybe show connecting state
-        setOpen(true);
+        // If modal is not already open, don't open it immediately, wait for disconnected
+        // If modal is open (e.g. from a previous disconnected state), keep it open
+        if (!open) {
+            // Do nothing, wait for disconnected state to trigger the delayed open
+        } else {
+             // Keep modal open but maybe show connecting state
+             setOpen(true);
+        }
     }
   }, [connectionStatus, open, attempting]);
 
-  // Clear timeout on unmount
+  // Clear timeouts on unmount
   useEffect(() => {
     return () => {
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
+      }
+      if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
       }
     };
   }, []);
@@ -80,6 +99,11 @@ const WebSocketConnectionModal: React.FC = () => {
 
   const handleCancel = () => {
     console.log('Dialog cancel requested');
+    // Clear any pending disconnect timer if modal is cancelled before it shows
+    if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+    }
     setOpen(false);
     setAttempting(false);
     setAttemptCount(0);
@@ -111,7 +135,7 @@ const WebSocketConnectionModal: React.FC = () => {
     } else if (connectionStatus === 'connecting') {
       return {
         icon: <CircularProgress size={30} />,
-        title: 'Connecting...',
+        title: 'Connecting...', // Keep 'Connecting...' when in this state
         message: 'Attempting to establish a real-time connection to the server.',
         severity: 'info' as const
       };
@@ -123,16 +147,33 @@ const WebSocketConnectionModal: React.FC = () => {
         severity: 'error' as const
       };
     } else {
-      return {
-        icon: <WifiOffIcon fontSize="large" style={{ color: '#F44336' }} />,
-        title: 'Connection Lost',
-        message: 'The real-time connection to the server has been lost. This may cause delays in updates to check-ins and other real-time features.',
-        severity: 'warning' as const
-      };
+      // Use a check for 'open' state here so we don't show 'Connection Lost' 
+      // before the delay has passed, even if connectionStatus is 'disconnected'
+      if (open) {
+           return {
+            icon: <WifiOffIcon fontSize="large" style={{ color: '#F44336' }} />,
+            title: 'Connection Lost',
+            message: 'The real-time connection to the server has been lost. This may cause delays in updates to check-ins and other real-time features.',
+            severity: 'warning' as const
+          };
+      } else {
+          // If not open and disconnected, return null or a minimal state
+          // The modal will be managed by the open state based on the timer
+          return {
+            icon: null,
+            title: null,
+            message: null,
+            severity: null
+          };
+      }
     }
   };
 
   const content = getDialogContent();
+
+  // Only render the Dialog if content title is not null (meaning open is true and not in a brief connecting state)
+  if (!content.title) return null;
+
 
   return (
     <Dialog 

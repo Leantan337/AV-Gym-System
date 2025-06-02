@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, Typography, List, ListItem, ListItemText, Chip, Button, Box, CircularProgress } from '@mui/material';
 import WarningIcon from '@mui/icons-material/Warning';
 import CelebrationIcon from '@mui/icons-material/Celebration';
-import axios from 'axios';
+import { api } from '../../services/api';
 import { Link } from 'react-router-dom';
 
 interface Member {
@@ -38,7 +38,7 @@ const ExpiringMemberships: React.FC = () => {
     const fetchExpiringMemberships = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('/api/notifications/dashboard/expiring_memberships/');
+        const response = await api.get('/notifications/dashboard/expiring_memberships/');
         setExpiringMemberships(response.data);
         setError(null);
       } catch (err) {
