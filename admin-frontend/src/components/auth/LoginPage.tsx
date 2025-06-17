@@ -5,6 +5,7 @@ import {
   MDBContainer,
   MDBCard,
   MDBCardBody,
+  MDBCardImage,
   MDBRow,
   MDBCol,
   MDBIcon,
@@ -31,6 +32,7 @@ const LoginPage: React.FC = () => {
         navigate('/dashboard');
       }
     } catch (err) {
+      // Error is handled by the auth context
       console.error('Login failed:', err);
     } finally {
       setIsSubmitting(false);
@@ -38,74 +40,75 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <MDBContainer fluid className="min-vh-100 d-flex align-items-center justify-content-center p-3">
-      <MDBCard className="w-100 shadow-5" style={{ maxWidth: '950px', borderRadius: '1rem' }}>
-        <MDBRow className="g-0">
-          {/* Left Form Section */}
-          <MDBCol md="6" className="p-5 d-flex flex-column justify-content-center">
-            <div className="text-center text-md-start mb-4">
-              <MDBIcon fas icon="dumbbell" size="2x" className="text-primary mb-2" />
-              <h3 className="fw-bold mb-1">AV Gym System</h3>
-              <p className="text-muted">Sign in to your account</p>
-            </div>
-
-            {error && (
-              <MDBCardText className="text-danger mb-3">
-                {error}
-              </MDBCardText>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <MDBInput
-                label="Username"
-                id="username"
-                type="text"
-                size="lg"
-                className="mb-3"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-              <MDBInput
-                label="Password"
-                id="password"
-                type="password"
-                size="lg"
-                className="mb-3"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <a href="#!" className="small text-muted">Forgot password?</a>
-              </div>
-
-              <MDBBtn
-                className="w-100"
-                color="dark"
-                size="lg"
-                type="submit"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Logging in...' : 'Login'}
-              </MDBBtn>
-            </form>
-
-            <p className="text-center text-muted mt-4 mb-0">
-              Don't have an account? <a href="#!" className="text-primary">Register here</a>
-            </p>
+    <MDBContainer className="my-5">
+      <MDBCard>
+        <MDBRow className='g-0'>
+          <MDBCol md='6'>
+            <MDBCardImage 
+              src='https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-login-form/img1.webp' 
+              alt="login form" 
+              className='rounded-start w-100'
+            />
           </MDBCol>
 
-          {/* Right Image Section */}
-          <MDBCol md="6" className="d-none d-md-block">
-            <div style={{ height: '100%', overflow: 'hidden', borderTopRightRadius: '1rem', borderBottomRightRadius: '1rem' }}>
-              <img
-                src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1470&q=80"
-                alt="Gym"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </div>
+          <MDBCol md='6'>
+            <MDBCardBody className='d-flex flex-column'>
+              <div className='d-flex flex-row mt-2'>
+                <MDBIcon fas icon="cubes fa-3x me-3" style={{ color: '#ff6219' }}/>
+                <span className="h1 fw-bold mb-0">AV Gym System</span>
+              </div>
+
+              <h5 className="fw-normal my-4 pb-3" style={{letterSpacing: '1px'}}>Sign into your account</h5>
+
+              {error && (
+                <MDBCardText className="text-danger mb-4">
+                  {error}
+                </MDBCardText>
+              )}
+
+              <form onSubmit={handleSubmit}>
+                <MDBInput 
+                  wrapperClass='mb-4' 
+                  label='Username' 
+                  id='username' 
+                  type='text' 
+                  size="lg"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+                <MDBInput 
+                  wrapperClass='mb-4' 
+                  label='Password' 
+                  id='password' 
+                  type='password' 
+                  size="lg"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+
+                <MDBBtn 
+                  className="mb-4 px-5" 
+                  color='dark' 
+                  size='lg' 
+                  type='submit'
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Logging in...' : 'Login'}
+                </MDBBtn>
+              </form>
+
+              <a className="small text-muted" href="#!">Forgot password?</a>
+              <p className="mb-5 pb-lg-2" style={{color: '#393f81'}}>
+                Don't have an account? <a href="#!" style={{color: '#393f81'}}>Register here</a>
+              </p>
+
+              <div className='d-flex flex-row justify-content-start'>
+                <a href="#!" className="small text-muted me-1">Terms of use.</a>
+                <a href="#!" className="small text-muted">Privacy policy</a>
+              </div>
+            </MDBCardBody>
           </MDBCol>
         </MDBRow>
       </MDBCard>
