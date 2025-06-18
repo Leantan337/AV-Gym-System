@@ -4,15 +4,25 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.core.mail import send_mail
+from django.conf import settings
+from django.template.loader import render_to_string
+from django.utils import timezone
+from datetime import timedelta
 from .models import UserRole
 from .serializers import (
     UserSerializer,
     UserCreateSerializer,
     UserUpdateSerializer,
-    CustomTokenObtainPairSerializer
+    CustomTokenObtainPairSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordChangeSerializer
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
-from django.utils import timezone
 
 User = get_user_model()
 
@@ -52,6 +62,8 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserCreateSerializer
         elif self.action in ['update', 'partial_update']:
             return UserUpdateSerializer
+        elif self.action == 'change_password':
+            return PasswordChangeSerializer
         return UserSerializer
     
     def get_permissions(self):
@@ -63,6 +75,8 @@ class UserViewSet(viewsets.ModelViewSet):
         elif self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             permission_classes = [IsAuthenticated, IsSelfOrAdmin | IsAdminUser]
         elif self.action == 'me':
+            permission_classes = [IsAuthenticated]
+        elif self.action == 'change_password':
             permission_classes = [IsAuthenticated]
         else:
             permission_classes = [IsAdminUser]
@@ -119,6 +133,103 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"status": "password set"})
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['post'])
+    def change_password(self, request):
+        """
+        Change password for the current user.
+        """
+        serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            user = request.user
+            user.set_password(serializer.validated_data['new_password'])
+            user.save()
+            return Response({"status": "password changed successfully"})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetRequestView(APIView):
+    """
+    Request password reset via email.
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            try:
+                user = User.objects.get(email=email, is_active=True)
+                
+                # Generate password reset token
+                token = default_token_generator.make_token(user)
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                
+                # Create reset URL
+                reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
+                
+                # Send email
+                subject = "Password Reset Request - AV Gym System"
+                message = render_to_string('accounts/password_reset_email.html', {
+                    'user': user,
+                    'reset_url': reset_url,
+                    'expiry_hours': 24
+                })
+                
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [email],
+                    fail_silently=False,
+                )
+                
+                return Response({
+                    "message": "Password reset email sent successfully"
+                })
+                
+            except User.DoesNotExist:
+                # Don't reveal if email exists or not for security
+                return Response({
+                    "message": "If an account with this email exists, a password reset link has been sent."
+                })
+                
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    Confirm password reset with token.
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                uid = force_str(urlsafe_base64_decode(serializer.validated_data['uid']))
+                user = User.objects.get(pk=uid, is_active=True)
+                
+                # Check if token is valid
+                if default_token_generator.check_token(user, serializer.validated_data['token']):
+                    # Set new password
+                    user.set_password(serializer.validated_data['new_password'])
+                    user.save()
+                    
+                    return Response({
+                        "message": "Password reset successfully"
+                    })
+                else:
+                    return Response({
+                        "error": "Invalid or expired reset token"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                    
+            except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+                return Response({
+                    "error": "Invalid reset link"
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):

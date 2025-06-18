@@ -116,7 +116,7 @@ const NotificationLogs: React.FC = () => {
     
     try {
       // Build query params
-      let params = new URLSearchParams();
+      const params = new URLSearchParams();
       params.append('page', String(page + 1)); // API uses 1-indexed pages
       params.append('page_size', String(rowsPerPage));
       

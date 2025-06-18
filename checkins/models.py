@@ -9,6 +9,8 @@ class CheckIn(models.Model):
     check_out_time = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    location = models.CharField(max_length=100, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f'{self.member.full_name} - {self.check_in_time}'

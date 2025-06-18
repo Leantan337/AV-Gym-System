@@ -9,7 +9,7 @@ from checkins.consumers import CheckInConsumer, JWTAuthMiddleware
 django_asgi_app = get_asgi_application()
 
 websocket_urlpatterns = [
-    re_path(r'ws/checkins/$', CheckInConsumer.as_asgi()),
+    re_path(r'^ws/checkins/?$', CheckInConsumer.as_asgi()),
 ]
 
 application = ProtocolTypeRouter({

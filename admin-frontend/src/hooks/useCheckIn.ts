@@ -1,60 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { CheckInEvent } from '../services/websocket';
+import { CheckInData, CheckOutData } from '../services/websocket';
 
 export const useCheckIn = () => {
   const { sendMessage, subscribe, isConnected } = useWebSocket();
-  const [checkInStatus, setCheckInStatus] = useState<{
-    loading: boolean;
-    error: string | null;
-    success: boolean;
-  }>({ loading: false, error: null, success: false });
 
-  // Handle check-in/check-out
-  const handleCheckIn = async (memberId: string) => {
+  const checkInMember = useCallback(async (data: CheckInData) => {
     if (!isConnected) {
-      setCheckInStatus({
-        loading: false,
-        error: 'Not connected to server',
-        success: false,
-      });
-      return;
+      throw new Error('Not connected to WebSocket');
     }
+    return sendMessage('check_in', data);
+  }, [sendMessage, isConnected]);
 
-    setCheckInStatus({ loading: true, error: null, success: false });
-
-    try {
-      await sendMessage('check_in', { member_id: memberId });
-      setCheckInStatus({ loading: false, error: null, success: true });
-      
-      // Reset success status after 3 seconds
-      setTimeout(() => {
-        setCheckInStatus(prev => ({ ...prev, success: false }));
-      }, 3000);
-    } catch (error) {
-      console.error('Check-in error:', error);
-      setCheckInStatus({
-        loading: false,
-        error: error instanceof Error ? error.message : 'Failed to check in',
-        success: false,
-      });
+  const checkOutMember = useCallback(async (data: CheckOutData) => {
+    if (!isConnected) {
+      throw new Error('Not connected to WebSocket');
     }
-  };
+    return sendMessage('check_out', data);
+  }, [sendMessage, isConnected]);
 
-  // Subscribe to check-in events
-  useEffect(() => {
-    const unsubscribe = subscribe<CheckInEvent>('check_in_update', (event) => {
-      console.log('New check-in event:', event);
-    });
+  const onCheckIn = useCallback((callback: (data: any) => void) => {
+    return subscribe('member_checked_in', callback);
+  }, [subscribe]);
 
-    return () => {
-      unsubscribe();
-    };
+  const onCheckOut = useCallback((callback: (data: any) => void) => {
+    return subscribe('member_checked_out', callback);
   }, [subscribe]);
 
   return {
-    handleCheckIn,
-    ...checkInStatus,
-    isConnected,
+    checkInMember,
+    checkOutMember,
+    onCheckIn,
+    onCheckOut,
+    isConnected
   };
 };

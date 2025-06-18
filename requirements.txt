@@ -6,6 +6,7 @@ djangorestframework-simplejwt==5.3.1
 
 # Database
 psycopg2-binary>=2.9.6,<2.10.0
+dj-database-url==2.1.0
 
 # Asynchronous and WebSockets
 channels==4.1.0
@@ -15,6 +16,10 @@ channels-redis==4.1.0
 # Task Queue and Caching
 celery==5.3.6
 redis==5.0.1
+flower==2.0.1
+
+# Production server
+gunicorn==21.2.0
 
 # Security
 django-csp==4.0.0
@@ -39,3 +44,8 @@ requests>=2.30.0
 # Development and Testing
 pytest>=7.0.0
 pytest-django>=4.5.0
+
+# Code quality and formatting
+black==23.11.0
+flake8==6.1.0
+isort==5.12.0

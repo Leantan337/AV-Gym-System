@@ -203,11 +203,63 @@ CORS_EXPOSE_HEADERS = [
     'referrer-policy',
 ]
 
-# --- Content Security Policy and Security Headers ---
+# --- Celery Configuration ---
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_ENABLE_UTC = True
+
+# Celery Beat Schedule (for periodic tasks)
+CELERY_BEAT_SCHEDULE = {
+    'generate-daily-invoices': {
+        'task': 'invoices.tasks.generate_daily_invoices',
+        'schedule': 86400.0,  # Daily
+    },
+    'process-expiry-notifications': {
+        'task': 'notifications.tasks.process_expiry_notifications',
+        'schedule': 3600.0,  # Hourly
+    },
+    'cleanup-old-reports': {
+        'task': 'reports.tasks.cleanup_old_reports',
+        'schedule': 604800.0,  # Weekly
+    },
+}
+
+# Celery Task Routes
+CELERY_TASK_ROUTES = {
+    'invoices.tasks.*': {'queue': 'invoices'},
+    'notifications.tasks.*': {'queue': 'notifications'},
+    'reports.tasks.*': {'queue': 'reports'},
+}
+
+# Celery Worker Settings
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
+
+# --- Security Headers ---
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Content Security Policy - Updated for django-csp 4.0+
+CONTENT_SECURITY_POLICY = {
+    'DIRECTIVES': {
+        'default-src': ("'self'",),
+        'style-src': ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com"),
+        'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"),
+        'font-src': ("'self'", "https://fonts.gstatic.com"),
+        'img-src': ("'self'", "data:", "https:"),
+        'connect-src': ("'self'", "ws:", "wss:"),
+    }
+}
 
 # Simplified approach for development - Security middleware will add these headers
 # For development, disable CSP enforcement while we resolve configuration issues
-SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_SSL_REDIRECT = False  # Set to True in production
 SECURE_HSTS_SECONDS = 0  # Set to at least 31536000 in production
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # Set to True in production
@@ -244,10 +296,14 @@ EMAIL_HOST_USER = 'username@example.com'
 EMAIL_HOST_PASSWORD = 'password'
 DEFAULT_FROM_EMAIL = 'AV Gym <no-reply@avgym.com>'
 
+# Frontend URL for password reset links
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
 # Security settings
-X_FRAME_OPTIONS = 'DENY'
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_SSL_REDIRECT = False  # Set to True in production
+SECURE_HSTS_SECONDS = 0  # Set to at least 31536000 in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # Set to True in production
+SECURE_HSTS_PRELOAD = False  # Set to True in production
 
 # Uncomment in production
 # SECURE_SSL_REDIRECT = True

@@ -11,7 +11,9 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import LockIcon from '@mui/icons-material/Lock';
 import { useAuth, UserRole } from '../contexts/AuthContext';
+import ChangePasswordDialog from './auth/ChangePasswordDialog';
 
 const drawerWidth = 240;
 
@@ -68,6 +70,7 @@ const menuItems = [
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [userMenuAnchorEl, setUserMenuAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const location = useLocation();
   const { user, logout, checkRole } = useAuth();
   
@@ -88,6 +91,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const handleLogout = () => {
     handleUserMenuClose();
     logout();
+  };
+
+  const handleChangePassword = () => {
+    handleUserMenuClose();
+    setChangePasswordOpen(true);
   };
   
   // Filter menu items based on user role
@@ -196,6 +204,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </ListItemIcon>
                   My Profile
                 </MenuItem>
+                <MenuItem onClick={handleChangePassword}>
+                  <ListItemIcon>
+                    <LockIcon fontSize="small" />
+                  </ListItemIcon>
+                  Change Password
+                </MenuItem>
                 <MenuItem onClick={handleLogout}>
                   <ListItemIcon>
                     <LogoutIcon fontSize="small" />
@@ -245,6 +259,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         {children}
       </Box>
+      
+      {/* Change Password Dialog */}
+      <ChangePasswordDialog 
+        open={changePasswordOpen} 
+        onClose={() => setChangePasswordOpen(false)} 
+      />
     </Box>
   );
 };

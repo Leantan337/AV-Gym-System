@@ -45,7 +45,10 @@ const defaultAuthState: AuthState = {
   loading: true,
   error: null,
   login: async () => false,
-  logout: () => {},
+  logout: () => {
+    // Default implementation - will be overridden by provider
+    localStorage.removeItem('token');
+  },
   checkAuth: async () => false,
   checkRole: () => false,
 };
@@ -111,8 +114,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     try {
       console.log('Checking authentication status with token:', token ? '[TOKEN EXISTS]' : 'NO TOKEN');
-      // Use consistent endpoint format without /api/ prefix
-      const response = await api.get('/auth/me/');
+      // Use consistent endpoint format with /api/ prefix
+      const response = await api.get('/api/auth/me/');
       
       if (response.data) {
         console.log('Authentication successful, user role:', response.data.role);
@@ -181,10 +184,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(null);
       
       console.log(`Attempting login for user: ${username}`);
-      console.log('CSP/CORS debug: Sending request to /auth/token/ endpoint');
+      console.log('CSP/CORS debug: Sending request to /api/auth/token/ endpoint');
       
-      // Remove /api/ prefix to avoid double prefixing since baseURL already includes it
-      const response = await api.post('/auth/token/', {
+      // Use /api/ prefix to match Django URL structure
+      const response = await api.post('/api/auth/token/', {
         username,
         password,
       });
@@ -195,9 +198,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Set the token in state (which will trigger the useEffect)
       setToken(access);
       
+      // Add a small delay to ensure token is properly set before fetching user data
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Fetch user data with consistent endpoint format
       console.log('Fetching user profile data');
-      const userResponse = await api.get('/auth/me/');
+      const userResponse = await api.get('/api/auth/me/');
       console.log('User data retrieved successfully, role:', userResponse.data.role);
       const normalizedUser = {
         ...userResponse.data,
@@ -227,8 +233,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
     }
   }, [navigate, setError, setIsAuthenticated, setLoading, setToken, setUser]);
-
-
 
   // Check user role
   const checkRole = useCallback((allowedRoles: UserRole[]): boolean => {

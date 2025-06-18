@@ -136,7 +136,7 @@ export const generateCSP = (): string => {
 };
 
 // Rate limiting utilities
-let requestCounts: Record<string, { count: number; resetTime: number }> = {};
+const requestCounts: Record<string, { count: number; resetTime: number }> = {};
 const RATE_LIMIT = 20; // Max requests per minute
 const RATE_WINDOW = 60 * 1000; // 1 minute in ms
 

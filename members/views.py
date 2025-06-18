@@ -124,6 +124,22 @@ class MemberViewSet(viewsets.ModelViewSet):
         return context
     
     @action(detail=False, methods=['get'])
+    def search(self, request):
+        """Search members by name, phone, or ID"""
+        query = request.query_params.get('q', '')
+        if not query:
+            return Response([])
+        
+        queryset = Member.objects.filter(
+            Q(full_name__icontains=query) |
+            Q(phone__icontains=query) |
+            Q(id__icontains=query)
+        )[:10]  # Limit to 10 results
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
     def statistics(self, request):
         total_members = Member.objects.count()
         active_members = Member.objects.filter(status='active').count()

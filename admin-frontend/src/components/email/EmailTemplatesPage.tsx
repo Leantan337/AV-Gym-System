@@ -648,7 +648,7 @@ const EmailTemplatesPage: React.FC = () => {
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete the template "{templateToDelete?.name}"?
+            Are you sure you want to delete the template &quot;{templateToDelete?.name}&quot;?
             This action cannot be undone.
           </Typography>
         </DialogContent>

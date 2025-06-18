@@ -22,6 +22,10 @@ urlpatterns = [
     # Profile management
     path('me/', views.UserViewSet.as_view({'get': 'me'}), name='user-me'),
     path('me/change-password/', 
-         views.UserViewSet.as_view({'post': 'set_password'}), 
+         views.UserViewSet.as_view({'post': 'change_password'}), 
          name='user-change-password'),
+    
+    # Password reset
+    path('password-reset/', views.PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('password-reset/confirm/', views.PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
 ]

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   MDBBtn,
   MDBContainer,
@@ -104,7 +104,7 @@ const LoginPage: React.FC = () => {
                 </MDBBtn>
               </form>
 
-              <a className="small text-muted" href="#!">Forgot password?</a>
+              <Link to="/forgot-password" className="small text-muted">Forgot password?</Link>
               <p className="mb-5 pb-lg-2" style={{color: '#393f81'}}>
                 Don&apos;t have an account? <a href="#!" style={{color: '#393f81'}}>Register here</a>
               </p>

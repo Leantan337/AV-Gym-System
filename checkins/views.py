@@ -1,12 +1,17 @@
+from django.shortcuts import render
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from authentication.permissions import IsStaffOrAdmin, IsTrainerOrHigher, IsOwnerOrStaff
 from authentication.decorators import role_required
 from django.utils import timezone
 from django.db.models import Avg
 from .models import CheckIn
 from .serializers import CheckInSerializer
+from rest_framework.views import APIView
+from datetime import timedelta
+from django.core.paginator import Paginator
 
 class CheckInViewSet(viewsets.ModelViewSet):
     permission_classes = [IsTrainerOrHigher]  # Base permission
@@ -94,6 +99,49 @@ class CheckInViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Get paginated check-in history with filters"""
+        # Get query parameters
+        status = request.query_params.get('status', 'all')
+        date_range = request.query_params.get('dateRange', 'all')
+        page = int(request.query_params.get('page', 0))
+        per_page = int(request.query_params.get('perPage', 10))
+        
+        # Build queryset
+        queryset = CheckIn.objects.select_related('member').order_by('-check_in_time')
+        
+        # Filter by status
+        if status == 'checked_in':
+            queryset = queryset.filter(check_out_time__isnull=True)
+        elif status == 'checked_out':
+            queryset = queryset.filter(check_out_time__isnull=False)
+        
+        # Filter by date range
+        if date_range == 'today':
+            today = timezone.now().date()
+            queryset = queryset.filter(check_in_time__date=today)
+        elif date_range == 'week':
+            week_ago = timezone.now() - timedelta(days=7)
+            queryset = queryset.filter(check_in_time__gte=week_ago)
+        elif date_range == 'month':
+            month_ago = timezone.now() - timedelta(days=30)
+            queryset = queryset.filter(check_in_time__gte=month_ago)
+        
+        # Paginate
+        paginator = Paginator(queryset, per_page)
+        page_obj = paginator.get_page(page + 1)  # Django pagination is 1-based
+        
+        serializer = CheckInSerializer(page_obj.object_list, many=True)
+        
+        return Response({
+            'results': serializer.data,
+            'total': paginator.count,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': paginator.num_pages
+        })
+
+    @action(detail=False, methods=['get'])
     def stats(self, request):
         today = timezone.now().date()
         currently_in = CheckIn.objects.filter(check_out_time__isnull=True).count()
@@ -120,3 +168,13 @@ class CheckInViewSet(viewsets.ModelViewSet):
             'todayTotal': today_total,
             'averageStayMinutes': avg_stay
         })
+
+class RecentCheckInsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        recent_checkins = CheckIn.objects.filter(
+            check_in_time__gte=timezone.now() - timedelta(hours=24)
+        ).select_related('member').order_by('-check_in_time')[:20]
+        serializer = CheckInSerializer(recent_checkins, many=True)
+        return Response(serializer.data)

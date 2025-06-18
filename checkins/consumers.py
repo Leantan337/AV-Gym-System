@@ -67,10 +67,15 @@ class CheckInConsumer(AsyncWebsocketConsumer):
             # Handle heartbeat before authentication check
             if event_type == 'heartbeat':
                 # Respond to heartbeat with a heartbeat_ack
-                await self.send(json.dumps({
-                    'type': 'heartbeat_ack',
-                    'timestamp': timezone.now().isoformat()
-                }))
+                try:
+                    await self.send(json.dumps({
+                        'type': 'heartbeat_ack',
+                        'timestamp': timezone.now().isoformat()
+                    }))
+                except Exception as e:
+                    print(f"WebSocket: Error sending heartbeat response: {e}")
+                    # Connection might be closed, don't try to send more
+                    return
                 return
             
             if event_type == 'authenticate':
@@ -89,10 +94,14 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                                 self.room_group_name,
                                 self.channel_name
                             )
-                            await self.send(json.dumps({
-                                'type': 'authentication_success',
-                                'message': 'Successfully authenticated'
-                            }))
+                            try:
+                                await self.send(json.dumps({
+                                    'type': 'authentication_success',
+                                    'message': 'Successfully authenticated'
+                                }))
+                            except Exception as e:
+                                print(f"WebSocket: Error sending auth success: {e}")
+                                return
                             
                             # Send initial stats after authentication
                             print("WebSocket: Fetching initial stats...")
@@ -106,43 +115,56 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                                 print("WebSocket: Initial stats sent.")
                             except Exception as e:
                                 print(f"WebSocket: Error fetching or sending initial stats: {e}")
-                                # Decide how to handle this error - closing the connection might be appropriate
-                                # await self.close()
+                                # Don't close connection for stats errors, just log them
                             
                             return
                     except Exception as e:
                         print(f"Authentication error (message): {e}")
-                        await self.send(json.dumps({
-                            'type': 'authentication_error',
-                            'message': 'Invalid token'
-                        }))
+                        try:
+                            await self.send(json.dumps({
+                                'type': 'authentication_error',
+                                'message': 'Invalid token'
+                            }))
+                        except Exception as send_error:
+                            print(f"WebSocket: Error sending auth error: {send_error}")
                         await self.close()
                         return
                 else:
-                    await self.send(json.dumps({
-                        'type': 'authentication_error',
-                        'message': 'No token provided'
-                    }))
+                    try:
+                        await self.send(json.dumps({
+                            'type': 'authentication_error',
+                            'message': 'No token provided'
+                        }))
+                    except Exception as send_error:
+                        print(f"WebSocket: Error sending auth error: {send_error}")
                     await self.close()
                     return
             
             # For non-authentication messages, check if user is authenticated
             if isinstance(self.scope["user"], AnonymousUser):
-                await self.send(json.dumps({
-                    'type': 'error',
-                    'message': 'Authentication required'
-                }))
+                try:
+                    await self.send(json.dumps({
+                        'type': 'error',
+                        'message': 'Authentication required'
+                    }))
+                except Exception as send_error:
+                    print(f"WebSocket: Error sending auth required: {send_error}")
                 await self.close()
                 return
 
             if event_type == 'check_in':
-                await self.handle_check_in(data)
+                await self.handle_check_in(data.get('payload', {}))
+            elif event_type == 'check_out':
+                await self.handle_check_out(data.get('payload', {}))
         except json.JSONDecodeError:
             print("WebSocket: Invalid JSON received")
-            await self.send(json.dumps({
-                'type': 'error',
-                'message': 'Invalid JSON format'
-            }))
+            try:
+                await self.send(json.dumps({
+                    'type': 'error',
+                    'message': 'Invalid JSON format'
+                }))
+            except Exception as send_error:
+                print(f"WebSocket: Error sending JSON error: {send_error}")
 
     @database_sync_to_async
     def get_user(self, user_id):
@@ -175,36 +197,144 @@ class CheckInConsumer(AsyncWebsocketConsumer):
             'averageStayMinutes': average_stay_minutes,
         }
 
-    async def handle_check_in(self, data):
-        check_in = await self.create_check_in(data)
-        if check_in:
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'check_in_update',
-                    'data': {
-                        'id': str(check_in.id),
-                        'member': {
-                            'id': str(check_in.member.id),
-                            'full_name': check_in.member.full_name,
-                        },
-                        'check_in_time': check_in.check_in_time.isoformat(),
-                        'check_out_time': check_in.check_out_time.isoformat() if check_in.check_out_time else None,
-                        'status': 'checked_in' if not check_in.check_out_time else 'checked_out',
-                    }
-                }
-            )
-
     @database_sync_to_async
-    def create_check_in(self, data):
+    def process_check_in(self, member_id, location=None, notes=None):
         from members.models import Member
-        
         try:
-            member = Member.objects.get(id=data['member_id'])
+            member = Member.objects.get(id=member_id)
             check_in = CheckIn.objects.create(
                 member=member,
-                check_in_time=timezone.now()
+                check_in_time=timezone.now(),
+                location=location,
+                notes=notes
             )
-            return check_in
-        except (Member.DoesNotExist, KeyError):
-            return None
+            return {
+                'success': True,
+                'check_in': {
+                    'id': str(check_in.id),
+                    'member': {
+                        'id': str(member.id),
+                        'full_name': member.full_name,
+                        'membership_type': getattr(member, 'membership_type', '')
+                    },
+                    'check_in_time': check_in.check_in_time.isoformat(),
+                    'location': location
+                }
+            }
+        except Member.DoesNotExist:
+            return {'success': False, 'error': 'Member not found'}
+
+    async def handle_check_in(self, data):
+        # Handle both 'memberId' and 'member_id' for backward compatibility
+        member_id = data.get('memberId') or data.get('member_id')
+        
+        result = await self.process_check_in(
+            member_id,
+            data.get('location'),
+            data.get('notes')
+        )
+        if result['success']:
+            try:
+                await self.send(text_data=json.dumps({
+                    'type': 'check_in_success',
+                    'payload': result['check_in']
+                }))
+            except Exception as e:
+                print(f"WebSocket: Error sending check-in success: {e}")
+                return
+                
+            try:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'member_checked_in',
+                        'payload': result['check_in']
+                    }
+                )
+            except Exception as e:
+                print(f"WebSocket: Error broadcasting check-in: {e}")
+        else:
+            try:
+                await self.send(text_data=json.dumps({
+                    'type': 'check_in_error',
+                    'payload': {'error': result['error']}
+                }))
+            except Exception as e:
+                print(f"WebSocket: Error sending check-in error: {e}")
+
+    async def handle_check_out(self, data):
+        result = await self.process_check_out(
+            data.get('checkInId'),
+            data.get('notes')
+        )
+        if result['success']:
+            try:
+                await self.send(text_data=json.dumps({
+                    'type': 'check_out_success',
+                    'payload': result['check_out']
+                }))
+            except Exception as e:
+                print(f"WebSocket: Error sending check-out success: {e}")
+                return
+                
+            try:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'member_checked_out',
+                        'payload': result['check_out']
+                    }
+                )
+            except Exception as e:
+                print(f"WebSocket: Error broadcasting check-out: {e}")
+        else:
+            try:
+                await self.send(text_data=json.dumps({
+                    'type': 'check_out_error',
+                    'payload': {'error': result['error']}
+                }))
+            except Exception as e:
+                print(f"WebSocket: Error sending check-out error: {e}")
+
+    @database_sync_to_async
+    def process_check_out(self, check_in_id, notes=None):
+        try:
+            check_in = CheckIn.objects.get(id=check_in_id, check_out_time__isnull=True)
+            check_in.check_out_time = timezone.now()
+            if notes:
+                check_in.notes = notes
+            check_in.save()
+            return {
+                'success': True,
+                'check_out': {
+                    'id': str(check_in.id),
+                    'member': {
+                        'id': str(check_in.member.id),
+                        'full_name': check_in.member.full_name,
+                        'membership_type': getattr(check_in.member, 'membership_type', '')
+                    },
+                    'check_in_time': check_in.check_in_time.isoformat(),
+                    'check_out_time': check_in.check_out_time.isoformat(),
+                    'location': check_in.location
+                }
+            }
+        except CheckIn.DoesNotExist:
+            return {'success': False, 'error': 'Check-in not found or already checked out'}
+
+    async def member_checked_in(self, event):
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'member_checked_in',
+                'payload': event['payload']
+            }))
+        except Exception as e:
+            print(f"WebSocket: Error sending member_checked_in broadcast: {e}")
+
+    async def member_checked_out(self, event):
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'member_checked_out',
+                'payload': event['payload']
+            }))
+        except Exception as e:
+            print(f"WebSocket: Error sending member_checked_out broadcast: {e}")

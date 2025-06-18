@@ -27,7 +27,7 @@ from plans.views import MembershipPlanViewSet, MembershipSubscriptionViewSet
 from checkins.views import CheckInViewSet
 from invoices.views import InvoiceViewSet
 from reports.views import ReportViewSet
-from .views import dashboard_statistics
+from .views import dashboard_statistics, health_check
 from .api import admin_dashboard_stats, bulk_member_action, bulk_invoice_action, member_stats
 from .admin import gym_admin
 from rest_framework.views import APIView
@@ -95,6 +95,9 @@ urlpatterns = [
     # Reports API
     path('api/reports/generate/', ReportViewSet.as_view({'post': 'generate'}), name='report-generate'),
     path('api/reports/<int:pk>/download/', ReportViewSet.as_view({'get': 'download'}), name='report-download'),
+    
+    # Health Check
+    path('health/', health_check, name='health_check'),
 ]
 # Serve static and media files in development
 if settings.DEBUG:

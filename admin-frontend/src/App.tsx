@@ -22,6 +22,9 @@ import LoginPage from './components/auth/LoginPage';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import RoleAuthorization from './components/auth/RoleAuthorization';
 import AuthTestPage from './pages/AuthTestPage';
+import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
+import ResetPasswordPage from './components/auth/ResetPasswordPage';
+import { DashboardPage } from './pages/DashboardPage';
 
 const queryClient = new QueryClient();
 
@@ -109,6 +112,8 @@ function App() {
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
               <Route path="/auth-test" element={<AuthTestPage />} />
               
@@ -265,7 +270,7 @@ function App() {
               } />
               
               {/* Admin-only routes */}
-              <Route path="/admin/*" element={
+              <Route path="/dashboard" element={
                 <RoleAuthorization 
                   allowedRoles={[UserRole.ADMIN]}
                   adminOnly={true}
@@ -277,8 +282,7 @@ function App() {
                     <AuthenticatedWebSocket>
                       <WebSocketErrorBoundary>
                         <Layout>
-                          {/* Admin components would go here */}
-                          <div>Admin Panel</div>
+                          <DashboardPage />
                         </Layout>
                       </WebSocketErrorBoundary>
                     </AuthenticatedWebSocket>

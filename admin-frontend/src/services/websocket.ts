@@ -13,8 +13,30 @@ export interface CheckInEvent {
   status: 'checked_in' | 'checked_out';
 }
 
+export interface CheckInData {
+  memberId: string;
+  timestamp: string;
+  location?: string;
+  notes?: string;
+}
+
+export interface CheckOutData {
+  checkInId: string;
+  timestamp: string;
+  notes?: string;
+}
+
 export interface WebSocketMessage<T = any> {
-  type: string;
+  type:
+    | 'check_in_success'
+    | 'check_in_error'
+    | 'check_out_success'
+    | 'check_out_error'
+    | 'member_checked_in'
+    | 'member_checked_out'
+    | 'check_in_stats'
+    | 'error'
+    | string;
   payload: T;
 }
 
@@ -33,7 +55,7 @@ export class WebSocketService {
   private readonly PING_INTERVAL = 30000; // 30 seconds
   private readonly HEARTBEAT_INTERVAL = 10000; // 10 seconds
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private lastHeartbeatAck: number = 0;
+  private lastHeartbeatAck = 0;
   private readonly HEARTBEAT_TIMEOUT = 15000; // 15 seconds
   private readonly MAX_MISSED_HEARTBEATS = 2;
   private missedHeartbeats = 0;
@@ -563,6 +585,14 @@ export class WebSocketService {
       default:
         return 'disconnected';
     }
+  }
+
+  public async checkInMember(data: CheckInData): Promise<void> {
+    return this.send('check_in', data);
+  }
+
+  public async checkOutMember(data: CheckOutData): Promise<void> {
+    return this.send('check_out', data);
   }
 }
 
