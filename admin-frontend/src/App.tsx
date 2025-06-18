@@ -4,7 +4,8 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './index.css';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import { WebSocketProvider, useWebSocket } from './contexts/WebSocketContext';
 import { CheckInProvider } from './contexts/CheckInContext';
 import { AuthProvider, UserRole, useAuth } from './contexts/AuthContext';
@@ -25,11 +26,22 @@ import AuthTestPage from './pages/AuthTestPage';
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
 import ResetPasswordPage from './components/auth/ResetPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { NotificationProvider } from './contexts/NotificationContext';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import NotificationSystem from './components/common/NotificationSystem';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const theme = createTheme({
   palette: {
+    mode: 'light',
     primary: {
       main: '#1976d2',
     },
@@ -104,200 +116,204 @@ function App() {
   }, []);
   
   return (
-    <SecurityHeadersProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <Router>
-            <AuthProvider>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />
-              <Route path="/unauthorized" element={<UnauthorizedPage />} />
-              <Route path="/auth-test" element={<AuthTestPage />} />
-              
-              {/* Protected routes */}
-              <Route path="/" element={
-                <RoleAuthorization 
-                  allowedRoles={[
-                    UserRole.ADMIN,
-                    UserRole.MANAGER,
-                    UserRole.STAFF,
-                    UserRole.TRAINER,
-                    UserRole.FRONT_DESK
-                  ]}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized access to ${path} by role ${role}`);
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <CheckInProvider>
-                          <Layout>
-                            <Dashboard />
-                          </Layout>
-                        </CheckInProvider>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Members - accessible by everyone except front desk */}
-              <Route path="/members" element={
-                <RoleAuthorization 
-                  allowedRoles={[
-                    UserRole.ADMIN,
-                    UserRole.MANAGER,
-                    UserRole.STAFF,
-                    UserRole.TRAINER
-                  ]}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized access to ${path} by role ${role}`);
-                    // Could add server-side logging here in the future
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <CheckInProvider>
-                          <Layout>
-                            <Members />
-                          </Layout>
-                        </CheckInProvider>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Check-in - accessible by admin, manager, staff, and front desk */}
-              <Route path="/check-in" element={
-                <RoleAuthorization 
-                  allowedRoles={[
-                    UserRole.ADMIN,
-                    UserRole.MANAGER,
-                    UserRole.STAFF,
-                    UserRole.FRONT_DESK
-                  ]}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized access to ${path} by role ${role}`);
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <CheckInProvider>
-                          <Layout>
-                            <CheckInPage />
-                          </Layout>
-                        </CheckInProvider>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Notifications - accessible by admin and manager only */}
-              <Route path="/notifications" element={
-                <RoleAuthorization 
-                  allowedRoles={[
-                    UserRole.ADMIN,
-                    UserRole.MANAGER
-                  ]}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized access to ${path} by role ${role}`);
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <Layout>
-                          <NotificationPage />
-                        </Layout>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Reports - accessible by admin and manager only */}
-              <Route path="/reports" element={
-                <RoleAuthorization 
-                  allowedRoles={[
-                    UserRole.ADMIN,
-                    UserRole.MANAGER
-                  ]}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized access to ${path} by role ${role}`);
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <Layout>
-                          <ReportPage />
-                        </Layout>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Email Templates - accessible by admin and manager only */}
-              <Route path="/email-templates" element={
-                <RoleAuthorization 
-                  allowedRoles={[
-                    UserRole.ADMIN,
-                    UserRole.MANAGER
-                  ]}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized access to ${path} by role ${role}`);
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <Layout>
-                          <EmailTemplatesPage />
-                        </Layout>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Admin-only routes */}
-              <Route path="/dashboard" element={
-                <RoleAuthorization 
-                  allowedRoles={[UserRole.ADMIN]}
-                  adminOnly={true}
-                  onUnauthorized={(path, role) => {
-                    console.error(`Unauthorized admin access to ${path} by role ${role}`);
-                  }}
-                >
-                  <WebSocketProvider>
-                    <AuthenticatedWebSocket>
-                      <WebSocketErrorBoundary>
-                        <Layout>
-                          <DashboardPage />
-                        </Layout>
-                      </WebSocketErrorBoundary>
-                    </AuthenticatedWebSocket>
-                  </WebSocketProvider>
-                </RoleAuthorization>
-              } />
-              
-              {/* Redirect to dashboard if logged in, otherwise to login */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            </AuthProvider>
-          </Router>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </SecurityHeadersProvider>
+    <ErrorBoundary>
+      <SecurityHeadersProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={theme}>
+            <NotificationProvider>
+              <Router>
+                <AuthProvider>
+                  <Routes>
+                    {/* Public routes */}
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password/:uid/:token" element={<ResetPasswordPage />} />
+                    <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                    <Route path="/auth-test" element={<AuthTestPage />} />
+                    
+                    {/* Protected routes */}
+                    <Route path="/" element={
+                      <RoleAuthorization 
+                        allowedRoles={[
+                          UserRole.ADMIN,
+                          UserRole.MANAGER,
+                          UserRole.STAFF,
+                          UserRole.TRAINER,
+                          UserRole.FRONT_DESK
+                        ]}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized access to ${path} by role ${role}`);
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <CheckInProvider>
+                                <Layout>
+                                  <Dashboard />
+                                </Layout>
+                              </CheckInProvider>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                    
+                    {/* Members - accessible by everyone except front desk */}
+                    <Route path="/members" element={
+                      <RoleAuthorization 
+                        allowedRoles={[
+                          UserRole.ADMIN,
+                          UserRole.MANAGER,
+                          UserRole.STAFF,
+                          UserRole.TRAINER
+                        ]}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized access to ${path} by role ${role}`);
+                          // Could add server-side logging here in the future
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <CheckInProvider>
+                                <Layout>
+                                  <Members />
+                                </Layout>
+                              </CheckInProvider>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                    
+                    {/* Check-in - accessible by admin, manager, staff, and front desk */}
+                    <Route path="/check-in" element={
+                      <RoleAuthorization 
+                        allowedRoles={[
+                          UserRole.ADMIN,
+                          UserRole.MANAGER,
+                          UserRole.STAFF,
+                          UserRole.FRONT_DESK
+                        ]}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized access to ${path} by role ${role}`);
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <CheckInProvider>
+                                <Layout>
+                                  <CheckInPage />
+                                </Layout>
+                              </CheckInProvider>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                    
+                    {/* Notifications - accessible by admin and manager only */}
+                    <Route path="/notifications" element={
+                      <RoleAuthorization 
+                        allowedRoles={[
+                          UserRole.ADMIN,
+                          UserRole.MANAGER
+                        ]}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized access to ${path} by role ${role}`);
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <Layout>
+                                <NotificationPage />
+                              </Layout>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                    
+                    {/* Reports - accessible by admin and manager only */}
+                    <Route path="/reports" element={
+                      <RoleAuthorization 
+                        allowedRoles={[
+                          UserRole.ADMIN,
+                          UserRole.MANAGER
+                        ]}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized access to ${path} by role ${role}`);
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <Layout>
+                                <ReportPage />
+                              </Layout>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                    
+                    {/* Email Templates - accessible by admin and manager only */}
+                    <Route path="/email-templates" element={
+                      <RoleAuthorization 
+                        allowedRoles={[
+                          UserRole.ADMIN,
+                          UserRole.MANAGER
+                        ]}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized access to ${path} by role ${role}`);
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <Layout>
+                                <EmailTemplatesPage />
+                              </Layout>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                    
+                    {/* Admin-only routes */}
+                    <Route path="/dashboard" element={
+                      <RoleAuthorization 
+                        allowedRoles={[UserRole.ADMIN]}
+                        adminOnly={true}
+                        onUnauthorized={(path, role) => {
+                          console.error(`Unauthorized admin access to ${path} by role ${role}`);
+                        }}
+                      >
+                        <WebSocketProvider>
+                          <AuthenticatedWebSocket>
+                            <WebSocketErrorBoundary>
+                              <Layout>
+                                <DashboardPage />
+                              </Layout>
+                            </WebSocketErrorBoundary>
+                          </AuthenticatedWebSocket>
+                        </WebSocketProvider>
+                      </RoleAuthorization>
+                    } />
+                  </Routes>
+                  
+                  {/* Global Notification System */}
+                  <NotificationSystem position="top-right" maxNotifications={5} />
+                </AuthProvider>
+              </Router>
+            </NotificationProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </SecurityHeadersProvider>
+    </ErrorBoundary>
   );
 }
 
