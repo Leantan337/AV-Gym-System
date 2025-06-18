@@ -534,7 +534,11 @@ export class WebSocketService {
       this.socket = null;
     }
     this.clearIntervals();
-    this.connectionStatus = 'disconnected';
+    
+    // Preserve authentication_failed status, otherwise set to disconnected
+    if (this.connectionStatus !== 'authentication_failed') {
+      this.connectionStatus = 'disconnected';
+    }
     this.notifyConnectionStatusChange();
   }
 

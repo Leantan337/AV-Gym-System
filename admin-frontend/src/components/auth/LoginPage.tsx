@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MDBBtn,
@@ -20,21 +20,24 @@ const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, error } = useAuth();
   const navigate = useNavigate();
+  const isSubmittingRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) return;
+    if (!username || !password || isSubmittingRef.current) return;
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
+    
     try {
       const success = await login(username, password);
       if (success) {
         navigate('/dashboard');
       }
     } catch (err) {
-      // Error is handled by the auth context
       console.error('Login failed:', err);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -75,6 +78,7 @@ const LoginPage: React.FC = () => {
                   size="lg"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
                   required
                 />
                 <MDBInput 
@@ -85,6 +89,7 @@ const LoginPage: React.FC = () => {
                   size="lg"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
 
@@ -92,7 +97,7 @@ const LoginPage: React.FC = () => {
                   className="mb-4 px-5" 
                   color='dark' 
                   size='lg' 
-                  type='submit'
+                  type="submit"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Logging in...' : 'Login'}
@@ -101,7 +106,7 @@ const LoginPage: React.FC = () => {
 
               <a className="small text-muted" href="#!">Forgot password?</a>
               <p className="mb-5 pb-lg-2" style={{color: '#393f81'}}>
-                Don't have an account? <a href="#!" style={{color: '#393f81'}}>Register here</a>
+                Don&apos;t have an account? <a href="#!" style={{color: '#393f81'}}>Register here</a>
               </p>
 
               <div className='d-flex flex-row justify-content-start'>

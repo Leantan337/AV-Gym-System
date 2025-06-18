@@ -1,0 +1,11 @@
+# Bandit configuration
+skips: ['B101']
+exclude_dirs:
+  - venv
+  - static
+  - media
+  - migrations
+  - staticfiles
+  - node_modules
+  - build
+  - dist 

@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description:
+globs:
+alwaysApply: false
+---
+
