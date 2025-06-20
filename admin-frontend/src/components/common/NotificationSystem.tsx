@@ -15,7 +15,8 @@ import {
   Warning as WarningIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { useNotification, NotificationType } from '../../hooks/useNotification';
+import { NotificationType } from '../../hooks/useNotification';
+import { useNotificationContext } from '../../contexts/NotificationContext';
 
 const getNotificationIcon = (type: NotificationType) => {
   switch (type) {
@@ -56,7 +57,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({
   maxNotifications = 5,
   position = 'top-right'
 }) => {
-  const { notifications, removeNotification } = useNotification();
+  const { notifications, removeNotification } = useNotificationContext();
 
   // Limit the number of notifications displayed
   const displayNotifications = notifications.slice(-maxNotifications);
@@ -128,6 +129,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({
                   color="inherit"
                   onClick={() => removeNotification(notification.id)}
                   sx={{ p: 0.5 }}
+                  aria-label="close"
                 >
                   <CloseIcon fontSize="small" />
                 </IconButton>

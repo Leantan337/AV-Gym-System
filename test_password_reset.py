@@ -247,6 +247,37 @@ def test_password_reset_validation():
     print("\n" + "=" * 50)
     print("✅ Password reset validation tests completed!")
 
+def test_password_reset_invalid_token():
+    """Test password reset confirmation with an invalid or expired token"""
+    print("\n🧪 Testing Password Reset with Invalid/Expired Token")
+    print("=" * 50)
+
+    # Simulate an invalid/expired token and uid
+    invalid_token = "invalid-token"
+    invalid_uid = "invalid-uid"
+    new_password = "SomeNewPass123!"
+    confirm_data = {
+        "uid": invalid_uid,
+        "token": invalid_token,
+        "new_password": new_password,
+        "confirm_password": new_password
+    }
+
+    try:
+        response = requests.post(
+            f"{API_BASE}/auth/password-reset/confirm/",
+            json=confirm_data,
+            headers={"Content-Type": "application/json"}
+        )
+        print(f"   Status Code: {response.status_code}")
+        print(f"   Response: {response.json()}")
+        if response.status_code == 400:
+            print("   ✅ Invalid/expired token properly rejected")
+        else:
+            print("   ❌ Invalid/expired token not properly rejected")
+    except Exception as e:
+        print(f"   ❌ Error testing invalid/expired token: {e}")
+
 def main():
     """Main test function"""
     print("🚀 Starting Password Reset Functionality Tests")
@@ -257,6 +288,9 @@ def main():
     
     # Test validation scenarios
     test_password_reset_validation()
+    
+    # Test invalid/expired token scenario
+    test_password_reset_invalid_token()
     
     if success:
         print("\n🎉 All tests completed successfully!")

@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Checking authentication status with token:', token ? '[TOKEN EXISTS]' : 'NO TOKEN');
       // Use consistent endpoint format with /api/ prefix
-      const response = await api.get('/api/auth/me/');
+      const response = await api.get('/auth/me/');
       
       if (response.data) {
         console.log('Authentication successful, user role:', response.data.role);
@@ -187,7 +187,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('CSP/CORS debug: Sending request to /api/auth/token/ endpoint');
       
       // Use /api/ prefix to match Django URL structure
-      const response = await api.post('/api/auth/token/', {
+      const response = await api.post('/auth/token/', {
         username,
         password,
       });
@@ -203,7 +203,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Fetch user data with consistent endpoint format
       console.log('Fetching user profile data');
-      const userResponse = await api.get('/api/auth/me/');
+      const userResponse = await api.get('/auth/me/');
       console.log('User data retrieved successfully, role:', userResponse.data.role);
       const normalizedUser = {
         ...userResponse.data,

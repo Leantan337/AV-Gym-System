@@ -42,23 +42,23 @@ export const useApiError = (): UseApiErrorReturn => {
       if (error.code === 'NETWORK_ERROR' || error.code === 'ERR_NETWORK') {
         message = 'Unable to connect to the server. Please check your internet connection and try again.';
         code = 'NETWORK_ERROR';
-      } else if (status === 401) {
+      } else if (status !== undefined && status === 401) {
         message = 'Your session has expired. Please log in again.';
         code = 'UNAUTHORIZED';
-      } else if (status === 403) {
+      } else if (status !== undefined && status === 403) {
         message = 'You do not have permission to perform this action.';
         code = 'FORBIDDEN';
-      } else if (status === 404) {
+      } else if (status !== undefined && status === 404) {
         message = 'The requested resource was not found.';
         code = 'NOT_FOUND';
-      } else if (status === 422) {
+      } else if (status !== undefined && status === 422) {
         message = 'The provided data is invalid. Please check your input and try again.';
         code = 'VALIDATION_ERROR';
         details = data;
-      } else if (status === 429) {
+      } else if (status !== undefined && status === 429) {
         message = 'Too many requests. Please wait a moment and try again.';
         code = 'RATE_LIMITED';
-      } else if (status >= 500) {
+      } else if (status !== undefined && status >= 500) {
         message = 'Server error. Please try again later or contact support if the problem persists.';
         code = 'SERVER_ERROR';
       } else if (data?.message) {

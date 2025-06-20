@@ -273,14 +273,14 @@ export const adminApi = {
 
   // Auth
   login: async (username: string, password: string) => {
-    const response = await api.post('/auth/token/', { username, password });
+    const response = await api.post('/api/auth/token/', { username, password });
     localStorage.setItem('token', response.data.access);
     localStorage.setItem('refreshToken', response.data.refresh);
     return response.data;
   },
 
   refreshToken: async (refresh: string) => {
-    const response = await api.post('/auth/token/refresh/', { refresh });
+    const response = await api.post('/api/auth/token/refresh/', { refresh });
     if (response.data.access) {
       localStorage.setItem('token', response.data.access);
     }
