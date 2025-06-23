@@ -21,7 +21,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
   IconButton,
   Tabs,
   Tab
@@ -33,12 +32,11 @@ import {
   Dashboard as DashboardIcon,
   Error as ErrorIcon,
   CheckCircle as CheckCircleIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon
+  TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 import { ResponsiveContainer, PieChart, Pie, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 import axios from 'axios';
-import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, subDays, parseISO } from 'date-fns';
 import GridItem from '../common/GridItem';
 
 // Color palette for charts
@@ -97,7 +95,7 @@ const NotificationMetrics: React.FC = () => {
     fetchMetrics();
   }, [timeRange]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -114,7 +112,7 @@ const NotificationMetrics: React.FC = () => {
       });
 
       const logs = response.data;
-      processMetrics(logs);
+      processMetrics();
       setRecentLogs(logs.slice(0, 10)); // Get 10 most recent logs
       
       setLoading(false);
@@ -129,7 +127,7 @@ const NotificationMetrics: React.FC = () => {
   };
 
   // Process the notification logs to calculate metrics
-  const processMetrics = (logs: NotificationLog[]) => {
+  const processMetrics = () => {
     // This would typically be done server-side
     // For now, we'll calculate simple metrics client-side
     
@@ -390,7 +388,7 @@ const NotificationMetrics: React.FC = () => {
                               nameKey="notification_type"
                               label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                             >
-                              {typeMetrics.map((entry, index) => (
+                              {typeMetrics.map((_, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                               ))}
                             </Pie>

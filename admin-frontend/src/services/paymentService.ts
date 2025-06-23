@@ -1,5 +1,4 @@
 import { api } from './api';
-import type { AxiosInstance, AxiosResponse, AxiosRequestConfig } from 'axios';
 
 const typedAdminApi = api;
 
@@ -35,7 +34,7 @@ export interface PaymentGateway {
   name: string;
   isActive: boolean;
   supportedMethods: string[];
-  credentials: Record<string, any>;
+  credentials: Record<string, unknown>;
 }
 
 export const paymentService = {
@@ -163,7 +162,14 @@ export const paymentService = {
     paymentsByDay: Array<{ date: string; amount: number }>;
     paymentMethodBreakdown: Array<{ method: string; count: number; amount: number }>;
   }> => {
-    const response = await typedAdminApi.get<any>(`/payments/analytics/?period=${period}`);
+    const response = await typedAdminApi.get<{
+      totalAmount: number;
+      successfulPayments: number;
+      failedPayments: number;
+      refundedAmount: number;
+      paymentsByDay: Array<{ date: string; amount: number }>;
+      paymentMethodBreakdown: Array<{ method: string; count: number; amount: number }>;
+    }>(`/payments/analytics/?period=${period}`);
     return response.data;
   },
 };

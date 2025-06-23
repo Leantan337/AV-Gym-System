@@ -9,10 +9,19 @@ import {
   MDBRow,
   MDBCol,
   MDBIcon,
-  MDBInput,
-  MDBCardText
+  MDBInput
 } from 'mdb-react-ui-kit';
 import { api } from '../../services/api';
+
+interface ApiError {
+  response?: {
+    data?: {
+      error?: string;
+      message?: string;
+    };
+  };
+  message?: string;
+}
 
 const ResetPasswordPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
@@ -77,11 +86,12 @@ const ResetPasswordPage: React.FC = () => {
         navigate('/login');
       }, 3000);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password reset failed:', error);
+      const apiError = error as ApiError;
       setMessage({
         type: 'error',
-        text: error.response?.data?.error || error.response?.data?.message || 'Failed to reset password. Please try again.'
+        text: apiError.response?.data?.error || apiError.response?.data?.message || 'Failed to reset password. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -254,4 +264,4 @@ const ResetPasswordPage: React.FC = () => {
   );
 };
 
-export default ResetPasswordPage; 
+export default ResetPasswordPage;

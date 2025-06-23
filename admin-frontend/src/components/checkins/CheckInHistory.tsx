@@ -102,7 +102,7 @@ export const CheckInHistory: React.FC<CheckInHistoryProps> = ({
     };
   }, [queryClient, subscribe]);
 
-  const handleFilterChange = (key: keyof CheckInFilters, value: any) => {
+  const handleFilterChange = (key: keyof CheckInFilters, value: unknown) => {
     const newFilters = { ...filters, [key]: value };
     if (key !== 'page') {
       newFilters.page = 0; // Reset page when filters change

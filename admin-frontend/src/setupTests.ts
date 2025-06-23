@@ -5,7 +5,7 @@
 import '@testing-library/jest-dom';
 
 // Mock IntersectionObserver
-(global as any).IntersectionObserver = class IntersectionObserver {
+(window as unknown as { [key: string]: unknown }).IntersectionObserver = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
@@ -13,7 +13,7 @@ import '@testing-library/jest-dom';
 };
 
 // Mock ResizeObserver
-(global as any).ResizeObserver = class ResizeObserver {
+(window as unknown as { [key: string]: unknown }).ResizeObserver = class ResizeObserver {
   constructor() {}
   disconnect() {}
   observe() {}
@@ -61,7 +61,7 @@ const originalError = console.error;
 const originalWarn = console.warn;
 
 beforeAll(() => {
-  console.error = (...args: any[]) => {
+  console.error = (...args: Parameters<typeof console.error>) => {
     if (
       typeof args[0] === 'string' &&
       args[0].includes('Warning: ReactDOM.render is no longer supported')
@@ -71,7 +71,7 @@ beforeAll(() => {
     originalError.call(console, ...args);
   };
 
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: Parameters<typeof console.warn>) => {
     if (
       typeof args[0] === 'string' &&
       (args[0].includes('Warning: componentWillReceiveProps') ||
@@ -89,7 +89,7 @@ afterAll(() => {
 });
 
 // Mock fetch for API calls
-(global as any).fetch = jest.fn();
+(globalThis as typeof globalThis & { fetch: jest.Mock }).fetch = jest.fn();
 
 // Mock localStorage
 const localStorageMock = {
@@ -100,7 +100,7 @@ const localStorageMock = {
   length: 0,
   key: jest.fn(),
 };
-(global as any).localStorage = localStorageMock;
+(globalThis as typeof globalThis & { localStorage: typeof localStorageMock }).localStorage = localStorageMock;
 
 // Mock sessionStorage
 const sessionStorageMock = {
@@ -111,4 +111,4 @@ const sessionStorageMock = {
   length: 0,
   key: jest.fn(),
 };
-(global as any).sessionStorage = sessionStorageMock;
+(globalThis as typeof globalThis & { sessionStorage: typeof sessionStorageMock }).sessionStorage = sessionStorageMock;

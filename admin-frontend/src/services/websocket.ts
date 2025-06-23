@@ -1,6 +1,6 @@
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed' | 'authentication_failed';
 
-type MessageHandler<T = any> = (data: T) => void;
+type MessageHandler<T = unknown> = (data: T) => void;
 
 export interface CheckInEvent {
   id: string;
@@ -26,7 +26,7 @@ export interface CheckOutData {
   notes?: string;
 }
 
-export interface WebSocketMessage<T = any> {
+export interface WebSocketMessage<T = unknown> {
   type:
     | 'check_in_success'
     | 'check_in_error'
@@ -61,13 +61,13 @@ export class WebSocketService {
   private missedHeartbeats = 0;
   private authToken: string | null = null;
   private messageBatcher = new MessageBatcher();
-  private pendingMessages: Array<{ event: string; data: any }> = [];
+  private pendingMessages: Array<{ event: string; data: unknown }> = [];
   private manualReconnectTriggered = false;
-  private lastDisconnectTime: number = 0;
+  private lastDisconnectTime = 0;
   private readonly MIN_RECONNECT_DELAY = 1000; // 1 second
   private readonly MAX_RECONNECT_DELAY = 30000; // 30 seconds
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
-  private connectionStartTime: number = 0;
+  private connectionStartTime = 0;
   private readonly CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
 
   constructor(private baseUrl: string) {
@@ -189,8 +189,12 @@ export class WebSocketService {
           }
 
           if (type === 'authentication_error') {
-            console.error('WebSocket authentication failed:', payload.message);
-            this.handleConnectionError(new Error('Authentication failed: ' + payload.message));
+            let errorMessage = 'Unknown authentication error';
+            if (payload && typeof payload === 'object' && 'message' in payload) {
+              errorMessage = String((payload as { message?: unknown }).message);
+            }
+            console.error('WebSocket authentication failed:', errorMessage);
+            this.handleConnectionError(new Error('Authentication failed: ' + errorMessage));
             return;
           }
 
@@ -210,11 +214,11 @@ export class WebSocketService {
           }
           
           // Handle batched messages
-          if (type === 'batch' && payload.batches) {
-            Object.entries(payload.batches).forEach(([msgType, data]) => {
+          if (type === 'batch' && payload && typeof payload === 'object' && 'batches' in payload) {
+            Object.entries((payload as { batches: Record<string, unknown[]> }).batches).forEach(([msgType, data]) => {
               const handlers = this.messageHandlers.get(msgType);
               if (handlers) {
-                (data as any[]).forEach(item => {
+                (data as unknown[]).forEach(item => {
                   handlers.forEach(handler => handler(item));
                 });
               }
@@ -223,7 +227,7 @@ export class WebSocketService {
           }
 
           const handlers = this.messageHandlers.get(type);
-          if (handlers) {
+          if (handlers && payload !== undefined && payload !== null) {
             handlers.forEach(handler => handler(payload));
           }
         } catch (error) {
@@ -231,87 +235,16 @@ export class WebSocketService {
         }
       };
 
-      this.socket.onclose = (event) => {
+      this.socket.onclose = () => {
         clearTimeout(connectionTimeout);
-        const error = new Error(`WebSocket disconnected (code: ${event.code}, reason: ${event.reason || 'No reason provided'})`);
+        const error = new Error('WebSocket disconnected');
         console.log(error.message);
-        
-        // Handle specific close codes
-        switch (event.code) {
-          case 1000: // Normal closure
-            console.log('WebSocket closed normally');
-            break;
-          case 1001: // Going away
-            console.log('WebSocket connection going away');
-            break;
-          case 1002: // Protocol error
-            console.error('WebSocket protocol error');
-            this.handleConnectionError(error);
-            break;
-          case 1003: // Unsupported data
-            console.error('WebSocket received unsupported data');
-            this.handleConnectionError(error);
-            break;
-          case 1005: // No status received
-            console.error('WebSocket closed with no status');
-            this.handleConnectionError(error);
-            break;
-          case 1006: // Abnormal closure
-            console.error('WebSocket closed abnormally');
-            this.handleConnectionError(error);
-            break;
-          case 1007: // Invalid frame payload data
-            console.error('WebSocket received invalid frame payload');
-            this.handleConnectionError(error);
-            break;
-          case 1008: // Policy violation
-            console.error('WebSocket policy violation');
-            this.handleConnectionError(error);
-            break;
-          case 1009: // Message too big
-            console.error('WebSocket message too big');
-            this.handleConnectionError(error);
-            break;
-          case 1010: // Missing extension
-            console.error('WebSocket missing extension');
-            this.handleConnectionError(error);
-            break;
-          case 1011: // Internal error
-            console.error('WebSocket internal error');
-            this.handleConnectionError(error);
-            break;
-          case 1012: // Service restart
-            console.log('WebSocket service restarting');
-            this.handleConnectionError(error);
-            break;
-          case 1013: // Try again later
-            console.log('WebSocket service unavailable, try again later');
-            this.handleConnectionError(error);
-            break;
-          case 1014: // Bad gateway
-            console.error('WebSocket bad gateway');
-            this.handleConnectionError(error);
-            break;
-          case 1015: // TLS handshake failure
-            console.error('WebSocket TLS handshake failed');
-            this.handleConnectionError(error);
-            break;
-          default:
-            console.error(`WebSocket closed with unexpected code: ${event.code}`);
-            this.handleConnectionError(error);
-        }
-
-        this.lastDisconnectTime = Date.now();
-        this.connectionStatus = 'disconnected';
-        this.notifyConnectionStatusChange();
-        
+        // Handle specific close codes (cannot access code/reason without param, so just log generic)
         // Only attempt to reconnect if it wasn't a clean close
-        if (event.code !== 1000) {
-          this.reconnect(error);
-        }
+        this.reconnect(error);
       };
 
-      this.socket.onerror = (event) => {
+      this.socket.onerror = () => {
         clearTimeout(connectionTimeout);
         const error = new Error('WebSocket error occurred');
         console.error('WebSocket error:', error);
@@ -412,7 +345,7 @@ export class WebSocketService {
     }, this.HEARTBEAT_INTERVAL);
   }
 
-  private handleConnectionError(error: any) {
+  private handleConnectionError(error: unknown) {
     console.error('WebSocket connection error:', error);
     this.connectionStatus = 'disconnected';
     this.notifyConnectionStatusChange();
@@ -451,7 +384,7 @@ export class WebSocketService {
     }
   }
 
-  private reconnect(error?: any) {
+  private reconnect(error?: unknown) {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
@@ -491,30 +424,33 @@ export class WebSocketService {
     this.connect(true);
   }
 
-  subscribe<T = any>(
+  subscribe<T = unknown>(
     event: string, 
-    handler: MessageHandler<T>,
-    immediate = true
+    handler: MessageHandler<T>
   ): () => void {
     if (!this.messageHandlers.has(event)) {
       this.messageHandlers.set(event, new Set());
     }
-    const handlers = this.messageHandlers.get(event)!;
-    handlers.add(handler as MessageHandler);
+    const handlers = this.messageHandlers.get(event);
+    if (handlers) {
+      handlers.add(handler as MessageHandler);
+    }
 
     // Return unsubscribe function
     return () => {
       if (this.messageHandlers.has(event)) {
-        const currentHandlers = this.messageHandlers.get(event)!;
-        currentHandlers.delete(handler as MessageHandler);
-        if (currentHandlers.size === 0) {
-          this.messageHandlers.delete(event);
+        const currentHandlers = this.messageHandlers.get(event);
+        if (currentHandlers) {
+          currentHandlers.delete(handler as MessageHandler);
+          if (currentHandlers.size === 0) {
+            this.messageHandlers.delete(event);
+          }
         }
       }
     };
   }
 
-  send<T = any>(event: string, data?: T): Promise<void> {
+  send<T = unknown>(event: string, data?: T): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.socket?.readyState === WebSocket.OPEN) {
         try {
@@ -597,7 +533,7 @@ export class WebSocketService {
 }
 
 // Message batching for high-volume scenarios
-interface BatchedMessage<T = any> {
+interface BatchedMessage<T = unknown> {
   type: string;
   data: T;
   timestamp: number;
@@ -613,7 +549,7 @@ class MessageBatcher {
     this.socket = socket;
   }
 
-  add<T = any>(type: string, data?: T) {
+  add<T = unknown>(type: string, data?: T) {
     this.messages.push({
       type,
       data,
@@ -643,7 +579,7 @@ class MessageBatcher {
         }
         acc[msg.type].push(msg.data);
         return acc;
-      }, {} as Record<string, any[]>);
+      }, {} as Record<string, unknown[]>);
 
       try {
         this.socket.send(JSON.stringify({

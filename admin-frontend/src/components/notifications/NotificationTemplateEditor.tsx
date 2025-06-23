@@ -161,13 +161,6 @@ const NotificationTemplateEditor: React.FC = () => {
     setTemplateFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSettingsFormChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
-    const { name, value } = e.target;
-    if (name) {
-      setSettingsFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
   const handleSwitchChange = (name: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setSettingsFormData(prev => ({ ...prev, [name]: e.target.checked }));
   };

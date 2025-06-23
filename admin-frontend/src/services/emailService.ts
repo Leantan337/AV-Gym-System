@@ -1,6 +1,5 @@
 import { api } from './api';
 import emailConfig from '../config/emailConfig';
-import { sanitizeHtml } from '../utils/security';
 
 export interface EmailTemplate {
   id: string;
@@ -46,7 +45,7 @@ export interface SMTPTestResult {
 export interface BulkEmailParams {
   templateId: string;
   recipientIds: string[];
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   includeAttachments?: boolean;
 }
 

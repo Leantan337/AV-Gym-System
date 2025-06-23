@@ -36,9 +36,9 @@ export const CheckInForm: React.FC = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = onCheckIn((data) => {
+    const unsubscribe = onCheckIn(() => {
       // Optionally show a toast or notification
-      // console.log('New check-in:', data);
+      // console.log('New check-in');
     });
     return () => unsubscribe();
   }, [onCheckIn]);

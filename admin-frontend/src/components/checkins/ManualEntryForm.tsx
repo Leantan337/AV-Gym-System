@@ -11,9 +11,8 @@ import {
   Avatar,
   Alert,
   IconButton,
-  Tooltip,
 } from '@mui/material';
-import { Search, X, UserCheck, AlertCircle } from 'lucide-react';
+import { Search, X, UserCheck } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { searchMembers } from '../../services/api';
 
@@ -41,7 +40,7 @@ export const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSubmit }) =>
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormInputs>();
+  const { handleSubmit, reset, setValue } = useForm<FormInputs>();
 
   useEffect(() => {
     const searchTimer = setTimeout(async () => {
@@ -64,7 +63,7 @@ export const ManualEntryForm: React.FC<ManualEntryFormProps> = ({ onSubmit }) =>
     return () => clearTimeout(searchTimer);
   }, [searchQuery]);
 
-  const onFormSubmit = async (data: FormInputs) => {
+  const onFormSubmit = async () => {
     if (!selectedMember) {
       setError('Please select a member first');
       setTimeout(() => setError(null), 3000);

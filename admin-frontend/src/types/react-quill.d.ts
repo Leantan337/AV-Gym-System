@@ -11,23 +11,23 @@ declare module 'react-quill' {
     defaultValue?: string;
     placeholder?: string;
     tabIndex?: number;
-    modules?: any;
+    modules?: unknown;
     formats?: string[];
     bounds?: string | HTMLElement;
     scrollingContainer?: string | HTMLElement;
-    onChange?: (content: string, delta: any, source: string, editor: any) => void;
-    onChangeSelection?: (range: any, source: string, editor: any) => void;
-    onFocus?: (range: any, source: string, editor: any) => void;
-    onBlur?: (previousRange: any, source: string, editor: any) => void;
-    onKeyPress?: React.EventHandler<any>;
-    onKeyDown?: React.EventHandler<any>;
-    onKeyUp?: React.EventHandler<any>;
+    onChange?: (content: string, delta: unknown, source: string, editor: unknown) => void;
+    onChangeSelection?: (range: unknown, source: string, editor: unknown) => void;
+    onFocus?: (range: unknown, source: string, editor: unknown) => void;
+    onBlur?: (previousRange: unknown, source: string, editor: unknown) => void;
+    onKeyPress?: React.EventHandler<React.KeyboardEvent<HTMLDivElement>>;
+    onKeyDown?: React.EventHandler<React.KeyboardEvent<HTMLDivElement>>;
+    onKeyUp?: React.EventHandler<React.KeyboardEvent<HTMLDivElement>>;
     preserveWhitespace?: boolean;
   }
   
   class ReactQuill extends React.Component<ReactQuillProps> {
-    static Quill: any;
-    getEditor(): any;
+    static Quill: unknown;
+    getEditor(): unknown;
     focus(): void;
     blur(): void;
   }

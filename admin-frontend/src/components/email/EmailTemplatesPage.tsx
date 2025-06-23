@@ -34,7 +34,6 @@ import {
   Delete as DeleteIcon,
   Visibility as ViewIcon,
   Email as EmailIcon,
-  ContentCopy as DuplicateIcon,
 } from '@mui/icons-material';
 import { EmailTemplate, emailService, EmailStatus } from '../../services/emailService';
 import EmailTemplateEditor from './EmailTemplateEditor';
@@ -67,7 +66,7 @@ function TabPanel(props: TabPanelProps) {
  * Allows users to manage email templates, test emails, and view email logs
  */
 const EmailTemplatesPage: React.FC = () => {
-  const { user, checkRole } = useAuth();
+  const { user } = useAuth();
   const isAdmin = user?.role === UserRole.ADMIN;
   
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);

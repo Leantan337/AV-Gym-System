@@ -1,17 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { List, ListItem, ListItemText, Typography, Paper, Divider, Chip } from '@mui/material';
-import { useCheckIn } from '../../hooks/useCheckIn';
-
-interface CheckIn {
-  id: string;
-  member: {
-    id: string;
-    full_name: string;
-    membership_type: string;
-  };
-  check_in_time: string;
-  location?: string;
-}
+import { useCheckIn, CheckIn } from '../../hooks/useCheckIn';
 
 export const CheckInList: React.FC = () => {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -26,13 +15,17 @@ export const CheckInList: React.FC = () => {
           setCheckIns(data);
         }
       } catch (error) {
-        // Optionally handle error
+        console.error('Failed to load recent check-ins:', error);
       }
     };
+    
     loadRecentCheckIns();
+    
+    // Now this will work correctly with proper typing
     const unsubscribe = onCheckIn((newCheckIn: CheckIn) => {
       setCheckIns(prev => [newCheckIn, ...prev].slice(0, 20));
     });
+    
     return () => unsubscribe();
   }, [onCheckIn]);
 
@@ -73,4 +66,4 @@ export const CheckInList: React.FC = () => {
       </List>
     </Paper>
   );
-}; 
+};

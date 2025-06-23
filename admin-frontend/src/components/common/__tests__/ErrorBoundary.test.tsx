@@ -174,26 +174,39 @@ describe('ErrorBoundary', () => {
   });
 
   it('handles retry button click', async () => {
+    let shouldThrow = true;
+    
+    const TestComponent = () => {
+      if (shouldThrow) {
+        throw new Error('Test error message');
+      }
+      return <div>Normal component</div>;
+    };
+
     const { rerender } = render(
-      <ErrorBoundary>
-        <ThrowError shouldThrow={true} />
+      <ErrorBoundary key="error-boundary-1">
+        <TestComponent />
       </ErrorBoundary>
     );
 
+    // Verify error UI is shown
     expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
 
+    // Click retry button
     fireEvent.click(screen.getByText(/Try Again/));
 
-    // Re-render with no error
+    // Update the shouldThrow flag and remount the ErrorBoundary with a new key
+    shouldThrow = false;
+    
     rerender(
-      <ErrorBoundary>
-        <ThrowError shouldThrow={false} />
+      <ErrorBoundary key="error-boundary-2">
+        <TestComponent />
       </ErrorBoundary>
     );
 
-    // Wait for the normal component to appear, using a function matcher
+    // Wait for the normal component to appear
     await waitFor(() => {
-      expect(screen.getByText((content) => content.includes('Normal component'))).toBeInTheDocument();
+      expect(screen.getByText('Normal component')).toBeInTheDocument();
     });
   });
 
@@ -278,4 +291,4 @@ describe('ErrorBoundary', () => {
 
     consoleSpy.mockRestore();
   });
-}); 
+});

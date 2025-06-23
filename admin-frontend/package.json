@@ -5,23 +5,17 @@
   "dependencies": {
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
-    "@ericblade/quagga2": "^1.8.4",
     "@fortawesome/fontawesome-free": "^6.7.2",
     "@mui/icons-material": "^5.15.11",
     "@mui/material": "^5.15.11",
     "@mui/x-date-pickers": "^6.19.4",
     "@tanstack/react-query": "^5.20.5",
-    "@testing-library/dom": "^10.4.0",
     "@types/dompurify": "^3.0.5",
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20.11.19",
     "@types/react": "^18.2.57",
     "@types/react-dom": "^18.2.19",
     "axios": "^1.6.7",
-    "core-js": "^3.36.0",
     "date-fns": "^2.30.0",
     "dompurify": "^3.0.9",
-    "glob": "^10.3.10",
     "lucide-react": "^0.330.0",
     "mdb-react-ui-kit": "^9.0.0",
     "react": "^18.2.0",
@@ -29,12 +23,11 @@
     "react-hook-form": "^7.50.1",
     "react-quill": "^2.0.0",
     "react-router-dom": "^6.22.1",
-    "react-toastify": "^10.0.4",
     "recharts": "^2.12.0",
-    "rimraf": "^5.0.5",
-    "uuid": "^9.0.1",
     "web-vitals": "^3.5.2",
-    "yup": "^1.3.3"
+    "yup": "^1.3.3",
+    "@mui/system": "^5.15.11",
+    "react-image-crop": "^10.1.1"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -61,30 +54,18 @@
     ]
   },
   "devDependencies": {
-    "@babel/plugin-transform-class-properties": "^7.23.3",
-    "@babel/plugin-transform-nullish-coalescing-operator": "^7.23.3",
-    "@babel/plugin-transform-numeric-separator": "^7.23.3",
-    "@babel/plugin-transform-optional-chaining": "^7.23.3",
-    "@babel/plugin-transform-private-methods": "^7.23.3",
-    "@babel/plugin-transform-private-property-in-object": "^7.23.3",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.1",
     "@testing-library/user-event": "^14.5.2",
-    "@types/babel__core": "^7.20.5",
-    "@types/babel__generator": "^7.27.0",
-    "@types/babel__template": "^7.4.4",
-    "@types/babel__traverse": "^7.20.7",
-    "@types/parse-json": "^4.0.2",
-    "@types/prop-types": "^15.7.14",
-    "@types/stack-utils": "^2.0.3",
     "@types/trusted-types": "^2.0.7",
     "react-scripts": "^5.0.1",
-    "typescript": "^4.9.5"
+    "typescript": "^4.9.5",
+    "@typescript-eslint/parser": "^7.6.0",
+    "eslint-plugin-react": "^7.33.2",
+    "@typescript-eslint/eslint-plugin": "^7.6.0",
+    "eslint-config-react-app": "^7.0.1"
   },
   "resolutions": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.23.3",
-    "glob": "^10.3.10",
-    "rimraf": "^5.0.5",
-    "uuid": "^9.0.1"
+    "@babel/plugin-proposal-private-property-in-object": "^7.23.3"
   }
 }

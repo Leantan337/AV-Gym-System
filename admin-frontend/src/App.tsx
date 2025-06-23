@@ -2,10 +2,9 @@ import React, { useEffect } from 'react';
 import 'mdb-react-ui-kit/dist/css/mdb.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import './index.css';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import { WebSocketProvider, useWebSocket } from './contexts/WebSocketContext';
 import { CheckInProvider } from './contexts/CheckInContext';
 import { AuthProvider, UserRole, useAuth } from './contexts/AuthContext';
@@ -78,7 +77,7 @@ const AuthenticatedWebSocket: React.FC<{ children: React.ReactNode }> = ({ child
 // This helps recover from any stuck modal dialogs
 function setupEmergencyEscape() {
   let escCount = 0;
-  let escTimer: any = null;
+  let escTimer: ReturnType<typeof setTimeout> | null = null;
   
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -93,7 +92,7 @@ function setupEmergencyEscape() {
       
       if (escCount >= 3) {
         console.log('Emergency escape triggered - refreshing page');
-        clearTimeout(escTimer);
+        if (escTimer !== null) clearTimeout(escTimer);
         window.location.reload();
       }
     }
@@ -104,7 +103,7 @@ function setupEmergencyEscape() {
   // Return cleanup function
   return () => {
     window.removeEventListener('keydown', handleKeyDown);
-    if (escTimer) clearTimeout(escTimer);
+    if (escTimer !== null) clearTimeout(escTimer);
   };
 }
 

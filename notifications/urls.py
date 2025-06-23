@@ -5,7 +5,7 @@ from .views import (
     NotificationSettingViewSet,
     NotificationLogViewSet,
     ExpiryNotificationQueueViewSet,
-    DashboardNotificationsViewSet
+    DashboardNotificationsViewSet,
 )
 
 router = DefaultRouter()

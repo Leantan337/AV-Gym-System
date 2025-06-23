@@ -190,13 +190,18 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
         });
         setSuccess('Template updated successfully');
       } else {
-        // Create new template
+        // Create new template - use proper validation instead of non-null assertions
+        if (!template.name || !template.subject || !template.bodyText || !template.type) {
+          setError('All required fields must be filled');
+          return;
+        }
+        
         savedTemplate = await emailService.createTemplate({
-          name: template.name!,
-          subject: template.subject!,
+          name: template.name,
+          subject: template.subject,
           bodyHtml: sanitizedHtml,
-          bodyText: template.bodyText!,
-          type: template.type!,
+          bodyText: template.bodyText,
+          type: template.type,
         });
         setSuccess('Template created successfully');
       }

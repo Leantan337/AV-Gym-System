@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import CheckIn
 
+
 class CheckInSerializer(serializers.ModelSerializer):
     member = serializers.SerializerMethodField()
 

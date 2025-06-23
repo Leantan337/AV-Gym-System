@@ -6,27 +6,51 @@ from .models import User, UserRole
 
 class CustomUserAdmin(UserAdmin):
     """Custom User admin with role-based access control."""
-    
+
     model = User
     list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'is_staff', 'is_active')
     list_filter = ('role', 'is_staff', 'is_active')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         (_('Personal Info'), {'fields': ('first_name', 'last_name', 'email', 'phone')}),
-        (_('Permissions'), {
-            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions', 'role'),
-        }),
+        (
+            _('Permissions'),
+            {
+                'fields': (
+                    'is_active',
+                    'is_staff',
+                    'is_superuser',
+                    'groups',
+                    'user_permissions',
+                    'role',
+                ),
+            },
+        ),
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'role', 'is_staff', 'is_active')}
+        (
+            None,
+            {
+                'classes': ('wide',),
+                'fields': (
+                    'username',
+                    'email',
+                    'password1',
+                    'password2',
+                    'role',
+                    'is_staff',
+                    'is_active',
+                ),
+            },
         ),
     )
     search_fields = ('username', 'first_name', 'last_name', 'email')
     ordering = ('-date_joined',)
-    filter_horizontal = ('groups', 'user_permissions',)
+    filter_horizontal = (
+        'groups',
+        'user_permissions',
+    )
     readonly_fields = ('last_login', 'date_joined')
 
     def get_queryset(self, request):
@@ -46,7 +70,11 @@ class CustomUserAdmin(UserAdmin):
         if obj == request.user:
             return True  # Users can edit their own profile
         # Managers can edit their subordinates
-        if request.user.role == UserRole.MANAGER and obj.role in [UserRole.STAFF, UserRole.TRAINER, UserRole.FRONT_DESK]:
+        if request.user.role == UserRole.MANAGER and obj.role in [
+            UserRole.STAFF,
+            UserRole.TRAINER,
+            UserRole.FRONT_DESK,
+        ]:
             return True
         return False
 

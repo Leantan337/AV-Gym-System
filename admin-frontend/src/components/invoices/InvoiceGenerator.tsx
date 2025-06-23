@@ -21,7 +21,7 @@ import {
 import { Plus as PlusIcon, Trash2 as TrashIcon, Eye as PreviewIcon } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceApi } from '../../services/invoiceApi';
-import { CreateInvoiceData, InvoiceItem, InvoiceTemplate } from '../../types/invoice';
+import { CreateInvoiceData, InvoiceItem } from '../../types/invoice';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
 
@@ -41,7 +41,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onSuccess })
   const [previewOpen, setPreviewOpen] = useState(false);
 
   // Fetch invoice templates
-  const { data: templates = [], isLoading: templatesLoading } = useQuery({
+  const { data: templates = [] } = useQuery({
     queryKey: ['invoiceTemplates'],
     queryFn: invoiceApi.getTemplates,
   });

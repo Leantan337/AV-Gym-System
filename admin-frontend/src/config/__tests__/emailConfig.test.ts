@@ -1,4 +1,4 @@
-import emailConfig, { smtpProviders, dnsRecordTemplates } from '../emailConfig';
+import { smtpProviders, dnsRecordTemplates } from '../emailConfig';
 
 describe('Email Configuration', () => {
   // Store original env
@@ -16,7 +16,7 @@ describe('Email Configuration', () => {
   });
 
   describe('Environment Configuration', () => {
-    it('should use development config in non-production environment', () => {
+    it('should use development config in non-production environment', async () => {
       // Mock the environment by directly setting process.env
       const env = {
         ...originalEnv,
@@ -27,7 +27,7 @@ describe('Email Configuration', () => {
         writable: true
       });
 
-      const config = require('../emailConfig').default;
+      const { default: config } = await import('../emailConfig');
       
       expect(config).toEqual({
         provider: 'SendGrid',
@@ -42,7 +42,7 @@ describe('Email Configuration', () => {
       });
     });
 
-    it('should use production config with environment variables', () => {
+    it('should use production config with environment variables', async () => {
       // Mock the environment for production
       const env = {
         ...originalEnv,
@@ -61,7 +61,7 @@ describe('Email Configuration', () => {
         writable: true
       });
 
-      const config = require('../emailConfig').default;
+      const { default: config } = await import('../emailConfig');
       
       expect(config).toEqual({
         provider: 'SendGrid',
@@ -76,7 +76,7 @@ describe('Email Configuration', () => {
       });
     });
 
-    it('should use default values when production env vars are not set', () => {
+    it('should use default values when production env vars are not set', async () => {
       // Mock the environment for production with minimal env vars
       const env = {
         ...originalEnv,
@@ -87,7 +87,7 @@ describe('Email Configuration', () => {
         writable: true
       });
 
-      const config = require('../emailConfig').default;
+      const { default: config } = await import('../emailConfig');
       
       expect(config).toEqual({
         provider: 'SendGrid',
@@ -161,7 +161,7 @@ describe('Email Configuration', () => {
     });
 
     it('should have valid DNS record templates for all providers', () => {
-      Object.entries(dnsRecordTemplates).forEach(([provider, template]) => {
+      Object.entries(dnsRecordTemplates).forEach(([, template]) => {
         // Test SPF record
         expect(template.spf).toMatch(/^v=spf1/);
         

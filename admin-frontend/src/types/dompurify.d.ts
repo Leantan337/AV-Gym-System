@@ -34,7 +34,7 @@ declare module 'dompurify' {
     ): string;
     addHook(
       hook: string,
-      cb: (node: Node, data: any, config: any) => Node | void
+      cb: (node: Node, data: unknown, config: unknown) => Node | void
     ): DOMPurify;
     removeHook(hook: string): DOMPurify;
     removeHooks(hook: string): DOMPurify;

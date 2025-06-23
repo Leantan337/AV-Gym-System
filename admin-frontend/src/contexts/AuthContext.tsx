@@ -128,12 +128,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
       return false;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Authentication check failed:', error);
       // More specific error handling
-      if (error.message?.includes('Network Error')) {
+      if (
+        typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message?: unknown }).message === 'string' && (error as { message: string }).message.includes('Network Error')
+      ) {
         forceLogout('Unable to connect to the server. Please check your connection.');
-      } else if (error.response?.status === 401) {
+      } else if (
+        typeof error === 'object' && error !== null && 'response' in error && (error as { response?: { status?: number } }).response?.status === 401
+      ) {
         forceLogout('Session expired. Please log in again.');
       } else {
         forceLogout('Authentication failed. Please log in again.');
@@ -214,14 +218,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       navigate('/dashboard');
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login failed:', error);
       // Provide more specific error messages based on the error type
-      if (error.message?.includes('Network Error')) {
+      if (
+        typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message?: unknown }).message === 'string' && (error as { message: string }).message.includes('Network Error')
+      ) {
         setError('Unable to connect to the server. Please check your connection and try again.');
-      } else if (error.response?.status === 401) {
+      } else if (
+        typeof error === 'object' && error !== null && 'response' in error && (error as { response?: { status?: number } }).response?.status === 401
+      ) {
         setError('Invalid username or password');
-      } else if (error.response?.status === 403) {
+      } else if (
+        typeof error === 'object' && error !== null && 'response' in error && (error as { response?: { status?: number } }).response?.status === 403
+      ) {
         setError('CSRF verification failed. Please refresh the page and try again.');
       } else {
         setError('Login failed. Please try again later.');

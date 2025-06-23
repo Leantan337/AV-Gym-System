@@ -10,21 +10,16 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--port',
-            type=int,
-            default=8000,
-            help='Port to run the server on (default: 8000)'
+            '--port', type=int, default=8000, help='Port to run the server on (default: 8000)'
         )
         parser.add_argument(
             '--bind',
             type=str,
             default='127.0.0.1',
-            help='IP address to bind to (default: 127.0.0.1)'
+            help='IP address to bind to (default: 127.0.0.1)',
         )
         parser.add_argument(
-            '--reload',
-            action='store_true',
-            help='Enable auto-reload on code changes'
+            '--reload', action='store_true', help='Enable auto-reload on code changes'
         )
 
     def handle(self, *args, **options):
@@ -34,13 +29,16 @@ class Command(BaseCommand):
 
         # Configure Django settings
         import django
+
         django.setup()
 
         # Build Daphne command arguments
         daphne_args = [
             'daphne',
-            '-b', options['bind'],
-            '-p', str(options['port']),
+            '-b',
+            options['bind'],
+            '-p',
+            str(options['port']),
         ]
 
         if options['reload']:
@@ -50,20 +48,15 @@ class Command(BaseCommand):
 
         # Execute Daphne
         self.stdout.write(
-            self.style.SUCCESS(
-                f'Starting Daphne server on {options["bind"]}:{options["port"]}'
-            )
+            self.style.SUCCESS(f'Starting Daphne server on {options["bind"]}:{options["port"]}')
         )
-        
+
         # Use subprocess to run Daphne
         import subprocess
+
         try:
             subprocess.run(daphne_args, check=True)
         except KeyboardInterrupt:
-            self.stdout.write(
-                self.style.WARNING('Server stopped by user')
-            )
+            self.stdout.write(self.style.WARNING('Server stopped by user'))
         except subprocess.CalledProcessError as e:
-            self.stdout.write(
-                self.style.ERROR(f'Daphne server failed: {e}')
-            ) 
+            self.stdout.write(self.style.ERROR(f'Daphne server failed: {e}'))

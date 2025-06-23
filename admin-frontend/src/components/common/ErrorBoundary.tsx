@@ -127,7 +127,7 @@ class ErrorBoundary extends Component<Props, State> {
                   Something went wrong
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  We're sorry, but something unexpected happened. Our team has been notified.
+                  We&apos;re sorry, but something unexpected happened. Our team has been notified.
                 </Typography>
                 {errorId && (
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>

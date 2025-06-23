@@ -4,6 +4,7 @@ from django.utils import timezone
 from members.models import Member
 from plans.models import MembershipPlan
 
+
 class InvoiceTemplate(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
@@ -15,6 +16,7 @@ class InvoiceTemplate(models.Model):
     def __str__(self):
         return self.name
 
+
 class Invoice(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -24,7 +26,9 @@ class Invoice(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    number = models.CharField(max_length=50, unique=True, null=True, blank=True)  # Will be auto-generated on save
+    number = models.CharField(
+        max_length=50, unique=True, null=True, blank=True
+    )  # Will be auto-generated on save
     member = models.ForeignKey(Member, on_delete=models.PROTECT, related_name='invoices')
     template = models.ForeignKey(InvoiceTemplate, on_delete=models.PROTECT)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
@@ -41,7 +45,11 @@ class Invoice(models.Model):
         if not self.number:
             # Generate invoice number: INV-YYYY-XXXX
             year = timezone.now().year
-            last_invoice = Invoice.objects.filter(number__startswith=f'INV-{year}-').order_by('-number').first()
+            last_invoice = (
+                Invoice.objects.filter(number__startswith=f'INV-{year}-')
+                .order_by('-number')
+                .first()
+            )
             if last_invoice:
                 last_number = int(last_invoice.number.split('-')[-1])
                 new_number = last_number + 1
@@ -56,6 +64,7 @@ class Invoice(models.Model):
 
     def __str__(self):
         return f'{self.number} - {self.member.full_name}'
+
 
 class InvoiceItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

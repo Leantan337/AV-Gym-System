@@ -62,7 +62,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     queryFn: () => invoiceApi.getInvoices(filters),
   });
 
-  const handleFilterChange = (key: keyof InvoiceFilters, value: any) => {
+  const handleFilterChange = (key: keyof InvoiceFilters, value: string | number) => {
     setFilters(prev => ({
       ...prev,
       [key]: value,

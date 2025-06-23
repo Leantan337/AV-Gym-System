@@ -32,9 +32,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Plus as PlusIcon, Trash2 as TrashIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Invoice, InvoiceItem, CreateInvoiceData, InvoiceTemplate } from '../../types/invoice';
+import { Invoice, InvoiceItem, CreateInvoiceData } from '../../types/invoice';
 import { invoiceApi } from '../../services/invoiceApi';
-import { Member } from '../../types/member';
 import { searchMembers } from '../../services/api';
 
 interface InvoiceFormProps {
@@ -45,16 +44,6 @@ interface InvoiceFormProps {
 
 export interface InvoiceItemFormData extends Omit<InvoiceItem, 'total'> {
   total?: number;
-}
-
-interface MemberSearchResult {
-  id: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  address: string;
-  membershipNumber: string;
-  membership_number?: string;
 }
 
 interface PresetItem {
@@ -88,38 +77,6 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     queryKey: ['invoiceTemplates'],
     queryFn: invoiceApi.getTemplates,
   });
-
-  interface MemberData {
-    id: string;
-    fullName: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    membershipNumber: string;
-    membership_number?: string;
-  }
-
-  const handleMemberSelect = (member: MemberData) => {
-    const membershipNumber = (member.membershipNumber || member.membership_number || '').toString();
-    setSelectedMember({
-      id: member.id,
-      fullName: member.fullName,
-      email: member.email || '',
-      phone: member.phone || '',
-      address: member.address || '',
-      membershipNumber: membershipNumber || ''
-    });
-    setSearchQuery(member.fullName);
-  };
-
-  interface SearchResultMember {
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    address: string;
-    membershipNumber: string;
-  }
 
   interface MemberResult {
     id: string;
@@ -189,7 +146,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const handleItemChange = (index: number, field: keyof InvoiceItemFormData, value: any) => {
+  const handleItemChange = (index: number, field: keyof InvoiceItemFormData, value: string | number) => {
     const newItems = [...items];
     newItems[index] = {
       ...newItems[index],
@@ -240,7 +197,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
       })),
       dueDate: new Date(dueDate).toISOString().split('T')[0],
       notes: notes.trim() || undefined,
-      templateId: typeof selectedTemplate === 'string' ? selectedTemplate : (selectedTemplate as any)?.id || '',
+      templateId: selectedTemplate,
     };
 
     onSubmit(invoiceData);

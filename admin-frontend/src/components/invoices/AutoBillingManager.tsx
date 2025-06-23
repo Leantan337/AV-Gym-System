@@ -25,10 +25,9 @@ import {
   DialogActions,
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format, addDays, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { CalendarClock, CreditCard, AlertTriangle, TicketCheck, CheckCircle2 } from 'lucide-react';
-import { membershipService, MembershipSubscription } from '../../services/membershipService';
-import { invoiceApi } from '../../services/invoiceApi';
+import { membershipService } from '../../services/membershipService';
 
 export const AutoBillingManager: React.FC = () => {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);

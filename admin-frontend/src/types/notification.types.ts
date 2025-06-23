@@ -24,5 +24,5 @@ export type NotificationStatus = 'pending' | 'processing' | 'sent' | 'failed';
 export interface NotificationResponse {
   success: boolean;
   message: string;
-  data?: any;
+  data?: unknown;
 }

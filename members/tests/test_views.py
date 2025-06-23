@@ -18,41 +18,32 @@ class MemberViewSetTest(TestCase):
         """Set up test data"""
         # Create test users with different roles
         self.admin_user = User.objects.create_user(
-            username='admin',
-            email='admin@example.com',
-            password='admin123',
-            role='ADMIN'
+            username='admin', email='admin@example.com', password='admin123', role='ADMIN'
         )
-        
+
         self.staff_user = User.objects.create_user(
-            username='staff',
-            email='staff@example.com',
-            password='staff123',
-            role='STAFF'
+            username='staff', email='staff@example.com', password='staff123', role='STAFF'
         )
-        
+
         self.trainer_user = User.objects.create_user(
-            username='trainer',
-            email='trainer@example.com',
-            password='trainer123',
-            role='TRAINER'
+            username='trainer', email='trainer@example.com', password='trainer123', role='TRAINER'
         )
-        
+
         self.front_desk_user = User.objects.create_user(
             username='frontdesk',
             email='frontdesk@example.com',
             password='frontdesk123',
-            role='FRONT_DESK'
+            role='FRONT_DESK',
         )
-        
+
         # Create test plan
         self.plan = Plan.objects.create(
             name='Basic Plan',
             price=Decimal('29.99'),
             duration_days=30,
-            description='Basic membership plan'
+            description='Basic membership plan',
         )
-        
+
         # Create test member
         self.member = Member.objects.create(
             membership_number='MEM001',
@@ -60,12 +51,12 @@ class MemberViewSetTest(TestCase):
             phone='+1234567890',
             address='123 Main St, City, State',
             status='active',
-            notes='Test member'
+            notes='Test member',
         )
-        
+
         # Set up API client
         self.client = APIClient()
-        
+
         # URLs
         self.member_list_url = reverse('member-list')
         self.member_detail_url = reverse('member-detail', args=[self.member.id])
@@ -82,17 +73,17 @@ class MemberViewSetTest(TestCase):
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('results', response.data)
-        
+
         # Test with staff user
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test with trainer user
         self.client.force_authenticate(user=self.trainer_user)
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test with front desk user (should be denied)
         self.client.force_authenticate(user=self.front_desk_user)
         response = self.client.get(self.member_list_url)
@@ -119,7 +110,7 @@ class MemberViewSetTest(TestCase):
             'full_name': 'Jane Smith',
             'phone': '+1234567891',
             'address': '456 Oak St, City, State',
-            'status': 'active'
+            'status': 'active',
         }
         response = self.client.post(self.member_list_url, member_data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -127,19 +118,19 @@ class MemberViewSetTest(TestCase):
     def test_member_create_authorized(self):
         """Test member creation with authentication"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         member_data = {
             'membership_number': 'MEM002',
             'full_name': 'Jane Smith',
             'phone': '+1234567891',
             'address': '456 Oak St, City, State',
             'status': 'active',
-            'notes': 'New member'
+            'notes': 'New member',
         }
-        
+
         response = self.client.post(self.member_list_url, member_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
+
         # Verify member was created
         self.assertEqual(response.data['full_name'], 'Jane Smith')
         self.assertEqual(response.data['membership_number'], 'MEM002')
@@ -148,25 +139,22 @@ class MemberViewSetTest(TestCase):
     def test_member_create_invalid_data(self):
         """Test member creation with invalid data"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Test with missing required fields
-        invalid_data = {
-            'full_name': 'Jane Smith',
-            'phone': '+1234567891'
-        }
-        
+        invalid_data = {'full_name': 'Jane Smith', 'phone': '+1234567891'}
+
         response = self.client.post(self.member_list_url, invalid_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        
+
         # Test with duplicate membership number
         duplicate_data = {
             'membership_number': 'MEM001',  # Already exists
             'full_name': 'Jane Smith',
             'phone': '+1234567891',
             'address': '456 Oak St, City, State',
-            'status': 'active'
+            'status': 'active',
         }
-        
+
         response = self.client.post(self.member_list_url, duplicate_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -179,12 +167,9 @@ class MemberViewSetTest(TestCase):
     def test_member_update_authorized(self):
         """Test member update with authentication"""
         self.client.force_authenticate(user=self.admin_user)
-        
-        update_data = {
-            'full_name': 'Updated Name',
-            'phone': '+1234567899'
-        }
-        
+
+        update_data = {'full_name': 'Updated Name', 'phone': '+1234567899'}
+
         response = self.client.patch(self.member_detail_url, update_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['full_name'], 'Updated Name')
@@ -198,10 +183,10 @@ class MemberViewSetTest(TestCase):
     def test_member_delete_authorized(self):
         """Test member deletion with authentication"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         response = self.client.delete(self.member_detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        
+
         # Verify member was deleted
         response = self.client.get(self.member_detail_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -209,30 +194,30 @@ class MemberViewSetTest(TestCase):
     def test_member_search(self):
         """Test member search functionality"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Create additional test members
         Member.objects.create(
             membership_number='MEM003',
             full_name='Jane Smith',
             phone='+1234567891',
             address='456 Oak St, City, State',
-            status='active'
+            status='active',
         )
-        
+
         Member.objects.create(
             membership_number='MEM004',
             full_name='Bob Johnson',
             phone='+1234567892',
             address='789 Pine St, City, State',
-            status='inactive'
+            status='inactive',
         )
-        
+
         # Test search by full name
         response = self.client.get(f"{self.member_list_url}?search=John")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['full_name'], 'John Doe')
-        
+
         # Test search by membership number
         response = self.client.get(f"{self.member_list_url}?search=MEM003")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -242,29 +227,29 @@ class MemberViewSetTest(TestCase):
     def test_member_filtering(self):
         """Test member filtering functionality"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Create members with different statuses
         Member.objects.create(
             membership_number='MEM005',
             full_name='Active Member',
             phone='+1234567893',
             address='Test Address',
-            status='active'
+            status='active',
         )
-        
+
         Member.objects.create(
             membership_number='MEM006',
             full_name='Inactive Member',
             phone='+1234567894',
             address='Test Address',
-            status='inactive'
+            status='inactive',
         )
-        
+
         # Test filtering by active status
         response = self.client.get(f"{self.member_list_url}?status=active")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 2)  # Original member + active member
-        
+
         response = self.client.get(f"{self.member_list_url}?status=inactive")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
@@ -273,7 +258,7 @@ class MemberViewSetTest(TestCase):
     def test_member_pagination(self):
         """Test member pagination"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Create multiple members
         for i in range(25):
             Member.objects.create(
@@ -281,9 +266,9 @@ class MemberViewSetTest(TestCase):
                 full_name=f'Member{i}',
                 phone=f'+123456789{i}',
                 address=f'Address {i}',
-                status='active'
+                status='active',
             )
-        
+
         # Test pagination
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -291,31 +276,31 @@ class MemberViewSetTest(TestCase):
         self.assertIn('next', response.data)
         self.assertIn('previous', response.data)
         self.assertIn('results', response.data)
-        
+
         # Verify page size
         self.assertLessEqual(len(response.data['results']), 20)  # Default page size
 
     def test_member_ordering(self):
         """Test member ordering"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Create members with different names
         Member.objects.create(
             membership_number='MEM007',
             full_name='Alice Brown',
             phone='+1234567895',
             address='Test Address 1',
-            status='active'
+            status='active',
         )
-        
+
         Member.objects.create(
             membership_number='MEM008',
             full_name='Charlie Davis',
             phone='+1234567896',
             address='Test Address 2',
-            status='active'
+            status='active',
         )
-        
+
         # Test ordering by full name
         response = self.client.get(f"{self.member_list_url}?ordering=full_name")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -323,7 +308,7 @@ class MemberViewSetTest(TestCase):
         self.assertEqual(results[0]['full_name'], 'Alice Brown')
         self.assertEqual(results[1]['full_name'], 'Charlie Davis')
         self.assertEqual(results[2]['full_name'], 'John Doe')
-        
+
         # Test reverse ordering
         response = self.client.get(f"{self.member_list_url}?ordering=-full_name")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -335,45 +320,46 @@ class MemberViewSetTest(TestCase):
     def test_member_id_card_generation(self):
         """Test member ID card generation"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         url = reverse('member-id-card', args=[self.member.id])
         response = self.client.get(url)
-        
+
         # Should return PDF or redirect to ID card generation
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_302_FOUND, status.HTTP_404_NOT_FOUND])
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_302_FOUND, status.HTTP_404_NOT_FOUND],
+        )
 
     def test_member_bulk_operations(self):
         """Test member bulk operations"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Create additional members
         member2 = Member.objects.create(
             membership_number='MEM009',
             full_name='Jane Smith',
             phone='+1234567891',
             address='456 Oak St, City, State',
-            status='active'
+            status='active',
         )
-        
+
         member3 = Member.objects.create(
             membership_number='MEM010',
             full_name='Bob Johnson',
             phone='+1234567892',
             address='789 Pine St, City, State',
-            status='active'
+            status='active',
         )
-        
+
         # Test bulk update
         bulk_update_data = {
             'member_ids': [str(self.member.id), str(member2.id)],
-            'updates': {
-                'status': 'inactive'
-            }
+            'updates': {'status': 'inactive'},
         }
-        
+
         url = reverse('member-bulk-update')
         response = self.client.post(url, bulk_update_data, format='json')
-        
+
         # Check if bulk update endpoint exists and works
         if response.status_code == status.HTTP_404_NOT_FOUND:
             # Endpoint doesn't exist yet, but test structure is ready
@@ -384,7 +370,7 @@ class MemberViewSetTest(TestCase):
     def test_member_statistics(self):
         """Test member statistics endpoint"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Create additional members for statistics
         for i in range(5):
             Member.objects.create(
@@ -392,12 +378,12 @@ class MemberViewSetTest(TestCase):
                 full_name=f'Member{i}',
                 phone=f'+123456789{i}',
                 address=f'Address {i}',
-                status='active'
+                status='active',
             )
-        
+
         url = reverse('member-statistics')
         response = self.client.get(url)
-        
+
         # Check if statistics endpoint exists and works
         if response.status_code == status.HTTP_404_NOT_FOUND:
             # Endpoint doesn't exist yet, but test structure is ready
@@ -410,10 +396,10 @@ class MemberViewSetTest(TestCase):
     def test_member_export(self):
         """Test member export functionality"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         url = reverse('member-export')
         response = self.client.get(url)
-        
+
         # Check if export endpoint exists and works
         if response.status_code == status.HTTP_404_NOT_FOUND:
             # Endpoint doesn't exist yet, but test structure is ready
@@ -428,17 +414,17 @@ class MemberViewSetTest(TestCase):
         self.client.force_authenticate(user=self.admin_user)
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test staff permissions
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test trainer permissions
         self.client.force_authenticate(user=self.trainer_user)
         response = self.client.get(self.member_list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         # Test front desk permissions (should be denied)
         self.client.force_authenticate(user=self.front_desk_user)
         response = self.client.get(self.member_list_url)
@@ -447,7 +433,7 @@ class MemberViewSetTest(TestCase):
     def test_member_rate_limiting(self):
         """Test rate limiting on member endpoints"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         # Make multiple requests to test rate limiting
         for i in range(10):
             response = self.client.get(self.member_list_url)
@@ -467,30 +453,29 @@ class EmergencyContactViewSetTest(TestCase):
     def setUp(self):
         """Set up test data"""
         self.admin_user = User.objects.create_user(
-            username='admin',
-            email='admin@example.com',
-            password='admin123',
-            role='ADMIN'
+            username='admin', email='admin@example.com', password='admin123', role='ADMIN'
         )
-        
+
         self.plan = Plan.objects.create(
             name='Basic Plan',
             price=Decimal('29.99'),
             duration_days=30,
-            description='Basic membership plan'
+            description='Basic membership plan',
         )
-        
+
         self.member = Member.objects.create(
             membership_number='MEM001',
             full_name='John Doe',
             phone='+1234567890',
             address='123 Main St, City, State',
-            status='active'
+            status='active',
         )
-        
+
         self.client = APIClient()
         self.emergency_contact_list_url = reverse('emergencycontact-list')
-        self.emergency_contact_detail_url = reverse('emergencycontact-detail', args=[1])  # Placeholder
+        self.emergency_contact_detail_url = reverse(
+            'emergencycontact-detail', args=[1]
+        )  # Placeholder
 
     def test_emergency_contact_list_unauthorized(self):
         """Test emergency contact list without authentication"""
@@ -507,14 +492,14 @@ class EmergencyContactViewSetTest(TestCase):
     def test_emergency_contact_create(self):
         """Test emergency contact creation"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         contact_data = {
             'member': self.member.id,
             'name': 'John Smith',
             'phone': '+1234567892',
-            'relationship': 'Parent'
+            'relationship': 'Parent',
         }
-        
+
         response = self.client.post(self.emergency_contact_list_url, contact_data)
         # This endpoint might not exist yet, so we check for either 201 or 404
         if response.status_code == status.HTTP_404_NOT_FOUND:
@@ -527,12 +512,9 @@ class EmergencyContactViewSetTest(TestCase):
     def test_emergency_contact_update(self):
         """Test emergency contact update"""
         self.client.force_authenticate(user=self.admin_user)
-        
-        update_data = {
-            'name': 'Updated Name',
-            'phone': '+1234567899'
-        }
-        
+
+        update_data = {'name': 'Updated Name', 'phone': '+1234567899'}
+
         response = self.client.patch(self.emergency_contact_detail_url, update_data)
         # This endpoint might not exist yet, so we check for either 200 or 404
         if response.status_code == status.HTTP_404_NOT_FOUND:
@@ -545,14 +527,14 @@ class EmergencyContactViewSetTest(TestCase):
     def test_emergency_contact_delete(self):
         """Test emergency contact deletion"""
         self.client.force_authenticate(user=self.admin_user)
-        
+
         response = self.client.delete(self.emergency_contact_detail_url)
         # This endpoint might not exist yet, so we check for either 204 or 404
         if response.status_code == status.HTTP_404_NOT_FOUND:
             self.log_test("Emergency Contact Delete", False, "Endpoint not implemented yet")
         else:
             self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-            
+
             # Verify contact was deleted
             response = self.client.get(self.emergency_contact_detail_url)
-            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND) 
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

@@ -53,9 +53,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "parameters",
-                    models.JSONField(
-                        blank=True, default=dict, verbose_name="Report Parameters"
-                    ),
+                    models.JSONField(blank=True, default=dict, verbose_name="Report Parameters"),
                 ),
                 (
                     "created_at",
@@ -83,15 +81,11 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "error_message",
-                    models.TextField(
-                        blank=True, null=True, verbose_name="Error Message"
-                    ),
+                    models.TextField(blank=True, null=True, verbose_name="Error Message"),
                 ),
                 (
                     "completed_at",
-                    models.DateTimeField(
-                        blank=True, null=True, verbose_name="Completed At"
-                    ),
+                    models.DateTimeField(blank=True, null=True, verbose_name="Completed At"),
                 ),
                 (
                     "created_by",

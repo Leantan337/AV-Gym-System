@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+.env
+.env.*
+.git
+.gitignore
+.DS_Store
+coverage/
+*.log
+docs/
+*.md
+*.bak
+*.swp
+*.tmp
+tests/ 

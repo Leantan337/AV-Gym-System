@@ -200,9 +200,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "processed_at",
-                    models.DateTimeField(
-                        blank=True, null=True, verbose_name="Processed At"
-                    ),
+                    models.DateTimeField(blank=True, null=True, verbose_name="Processed At"),
                 ),
                 (
                     "created_at",

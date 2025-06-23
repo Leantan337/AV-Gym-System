@@ -12,8 +12,8 @@ interface WebSocketContextType {
   connectionStatus: ConnectionStatus;
   latestCheckIn: CheckInEvent | null;
   initialStats: CheckInStats | null;
-  sendMessage: <T = any>(event: string, data?: T) => Promise<void>;
-  subscribe: <T = any>(
+  sendMessage: <T = unknown>(event: string, data?: T) => Promise<void>;
+  subscribe: <T = unknown>(
     event: string, 
     handler: (data: T) => void,
     immediate?: boolean
@@ -96,11 +96,11 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   }, [authToken, isInitialized]);
 
-  const sendMessage = async <T = any,>(event: string, data?: T): Promise<void> => {
+  const sendMessage = async <T = unknown,>(event: string, data?: T): Promise<void> => {
     return wsService.send(event, data);
   };
 
-  const subscribe = <T = any>(
+  const subscribe = <T = unknown>(
     event: string,
     handler: (data: T) => void,
     immediate = true

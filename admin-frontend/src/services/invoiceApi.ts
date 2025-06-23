@@ -172,7 +172,7 @@ export const invoiceApi = {
   },
 
   // Get top members by invoice value
-  getTopMembers: async (startDate: string, endDate: string, limit: number = 5) => {
+  getTopMembers: async (startDate: string, endDate: string, limit = 5) => {
     const response = await api.get<Array<{
       memberId: string;
       memberName: string;

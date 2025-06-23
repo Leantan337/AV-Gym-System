@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, {useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 
 const AuthTestPage: React.FC = () => {
   const { isAuthenticated, user, login, logout } = useAuth();
-  const [testData, setTestData] = useState<any>(null);
+  const [testData, setTestData] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState('');
@@ -21,11 +21,25 @@ const AuthTestPage: React.FC = () => {
     try {
       const response = await api.get('/auth/me/');
       setTestData(response.data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch protected data');
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
+        setError((err as { message: string }).message);
+      } else {
+        setError('Failed to fetch protected data');
+      }
       console.error('Error fetching protected data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper to safely render testData
+  const renderTestData = (data: unknown): string => {
+    if (typeof data === 'string') return data;
+    try {
+      return JSON.stringify(data, null, 2);
+    } catch {
+      return '[Unserializable data]';
     }
   };
 
@@ -119,12 +133,10 @@ const AuthTestPage: React.FC = () => {
         </div>
       )}
 
-      {testData && (
+      {testData !== null && testData !== undefined && (
         <div style={{ marginTop: '20px', padding: '15px', border: '1px solid #4CAF50', borderRadius: '4px' }}>
           <h3>Protected Data:</h3>
-          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {JSON.stringify(testData, null, 2)}
-          </pre>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderTestData(testData)}</pre>
         </div>
       )}
 

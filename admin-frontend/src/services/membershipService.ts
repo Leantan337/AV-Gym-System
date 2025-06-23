@@ -1,5 +1,4 @@
 import { api } from './api';
-import { Member } from '../types/member';
 
 export interface MembershipPlan {
   id: string;
@@ -65,7 +64,7 @@ export const membershipService = {
     return response.data;
   },
 
-  getExpiringSubscriptions: async (days: number = 7): Promise<MembershipSubscription[]> => {
+  getExpiringSubscriptions: async (days = 7): Promise<MembershipSubscription[]> => {
     const response = await api.get<MembershipSubscription[]>(`/subscriptions/expiring/?days=${days}`);
     return response.data;
   },

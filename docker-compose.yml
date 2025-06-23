@@ -123,6 +123,15 @@ services:
       - web
     restart: unless-stopped
 
+  # React Frontend
+  frontend:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

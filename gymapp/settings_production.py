@@ -1,6 +1,7 @@
 """
 Production settings for gymapp
 """
+
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -129,7 +130,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-    ]
+    ],
 }
 
 SIMPLE_JWT = {
@@ -274,4 +275,4 @@ LOGGING = {
 }
 
 # Create logs directory if it doesn't exist
-os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True) 
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

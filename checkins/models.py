@@ -2,6 +2,7 @@ from django.db import models
 import uuid
 from members.models import Member
 
+
 class CheckIn(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='checkins')

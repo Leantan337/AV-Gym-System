@@ -137,7 +137,7 @@ export const EmailTemplateManager: React.FC = () => {
         data: formData,
       });
     } else {
-      createMutation.mutate(formData as any);
+      createMutation.mutate(formData);
     }
   };
 
@@ -293,7 +293,7 @@ export const EmailTemplateManager: React.FC = () => {
                 <Select
                   value={formData.type}
                   label="Template Type"
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as EmailTemplateFormData['type'] })}
                   required
                 >
                   <MenuItem value="invoice">Invoice</MenuItem>

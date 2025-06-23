@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   MDBBtn,
   MDBContainer,
@@ -9,16 +9,23 @@ import {
   MDBRow,
   MDBCol,
   MDBIcon,
-  MDBInput,
-  MDBCardText
+  MDBInput
 } from 'mdb-react-ui-kit';
 import { api } from '../../services/api';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
 
 const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,11 +41,12 @@ const ForgotPasswordPage: React.FC = () => {
         text: response.data.message || 'Password reset email sent successfully!'
       });
       setEmail('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password reset request failed:', error);
+      const apiError = error as ApiError;
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || 'Failed to send password reset email. Please try again.'
+        text: apiError.response?.data?.message || 'Failed to send password reset email. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -69,7 +77,7 @@ const ForgotPasswordPage: React.FC = () => {
               </h5>
 
               <p className="text-muted mb-4">
-                Enter your email address and we'll send you a link to reset your password.
+                Enter your email address and we&apos;ll send you a link to reset your password.
               </p>
 
               {message && (
@@ -131,4 +139,4 @@ const ForgotPasswordPage: React.FC = () => {
   );
 };
 
-export default ForgotPasswordPage; 
+export default ForgotPasswordPage;

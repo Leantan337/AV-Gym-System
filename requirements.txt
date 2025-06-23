@@ -23,7 +23,6 @@ gunicorn==21.2.0
 
 # Security
 django-csp==4.0.0
-python-dotenv==1.0.0
 
 # Image Processing
 Pillow>=10.1.0
@@ -37,15 +36,3 @@ python-barcode==0.15.1
 # Data Processing and Export
 pandas>=2.0.0
 xlsxwriter>=3.0.0
-
-# HTTP Requests (for testing)
-requests>=2.30.0
-
-# Development and Testing
-pytest>=7.0.0
-pytest-django>=4.5.0
-
-# Code quality and formatting
-black==23.11.0
-flake8==6.1.0
-isort==5.12.0

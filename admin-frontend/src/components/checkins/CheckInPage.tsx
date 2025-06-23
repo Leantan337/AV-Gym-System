@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, Typography, Alert, Snackbar, CircularProgress } from '@mui/material';
+import { Box, Paper, Typography, Alert, Snackbar } from '@mui/material';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ManualEntryForm } from './ManualEntryForm';
 import { CheckInStatus } from './CheckInStatus';
 import { CheckInHistory } from './CheckInHistory';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCheckInHistory, CheckInFilters, CheckInResponse } from '../../services/api';
+import { getCheckInHistory, CheckInFilters } from '../../services/api';
 import { useCheckIn } from '../../contexts/CheckInContext';
 
 export const CheckInPage: React.FC = () => {
@@ -24,8 +24,7 @@ export const CheckInPage: React.FC = () => {
   }>({ message: '', type: 'info', open: false });
 
   const queryClient = useQueryClient();
-  const { checkIn, checkOut, latestCheckIn, error: checkInError } = useCheckIn();
-  const [isLoading, setIsLoading] = useState(false);
+  const { checkIn, latestCheckIn, error: checkInError } = useCheckIn();
 
   // Fetch check-in history
   const { data: checkInData, isLoading: isLoadingCheckIns } = useQuery({
@@ -58,7 +57,6 @@ export const CheckInPage: React.FC = () => {
 
   const handleCheckIn = async (memberId: string) => {
     try {
-      setIsLoading(true);
       await checkIn(memberId);
       // Success notification is handled by the WebSocket listener
     } catch (error) {
@@ -68,8 +66,6 @@ export const CheckInPage: React.FC = () => {
         type: 'error',
         open: true,
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 

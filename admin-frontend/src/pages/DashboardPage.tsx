@@ -1,3 +1,4 @@
+import React from 'react';
 import { CheckInForm } from '../components/checkin/CheckInForm';
 import { CheckInList } from '../components/checkin/CheckInList';
 import { Grid } from '@mui/material';

@@ -7,4 +7,4 @@ router.register(r'checkins', CheckInViewSet)
 
 urlpatterns = [
     path('recent/', RecentCheckInsView.as_view(), name='recent-checkins'),
-] + router.urls 
+] + router.urls

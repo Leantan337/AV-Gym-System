@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NotificationType, NotificationSchedule, NotificationFormData } from '../../types/notification.types';
+import { NotificationType, NotificationSchedule } from '../../types/notification.types';
 import {
   Box,
   Paper,
@@ -37,12 +37,9 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Refresh as RefreshIcon,
-  Schedule as ScheduleIcon,
   PlayArrow as RunIcon,
 } from '@mui/icons-material';
-import axios from 'axios';
 import { format, parseISO, addDays } from 'date-fns';
-import { ExtendedGridProps } from '../../types/mui.types';
 import GridItem from '../common/GridItem';
 
 // Using imported types from notification.types.ts
@@ -168,10 +165,6 @@ const NotificationScheduler: React.FC = () => {
     setEditingSchedule(null);
   };
   
-  const handleFormChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-  
   const handleSubmit = async () => {
     try {
       // In a real implementation, this would save to the API
@@ -195,15 +188,17 @@ const NotificationScheduler: React.FC = () => {
         setSuccess(`Schedule for ${formData.days_before_event} days before expiry updated successfully`);
       } else {
         // Create new schedule
+        if (!formData.notification_type || formData.days_before_event === undefined || formData.is_active === undefined) {
+          setError('Please fill in all required fields.');
+          return;
+        }
         const newSchedule: NotificationSchedule = {
           id: String(Date.now()),
-          notification_type: formData.notification_type!,
-          days_before_event: formData.days_before_event!,
-          is_active: formData.is_active!,
+          notification_type: formData.notification_type,
+          days_before_event: formData.days_before_event,
+          is_active: formData.is_active,
           last_run: null,
-          next_run: formData.is_active 
-            ? addDays(new Date(), Math.floor(Math.random() * 7) + 1).toISOString()
-            : null,
+          next_run: null,
         };
         setSchedules([...schedules, newSchedule]);
         setSuccess(`New schedule for ${formData.days_before_event} days before expiry created successfully`);

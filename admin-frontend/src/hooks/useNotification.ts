@@ -105,33 +105,38 @@ export const useNotification = (): UseNotificationReturn => {
 };
 
 // Utility function to create notification from API error
-export const createNotificationFromError = (error: any, title?: string): Omit<Notification, 'id' | 'timestamp'> => {
+export const createNotificationFromError = (error: unknown, title?: string): Omit<Notification, 'id' | 'timestamp'> => {
   let errorTitle = title || 'Error';
   let errorMessage = 'An unexpected error occurred';
 
-  if (error?.response?.data?.message) {
-    errorMessage = error.response.data.message;
-  } else if (error?.response?.data?.detail) {
-    errorMessage = error.response.data.detail;
-  } else if (error?.message) {
-    errorMessage = error.message;
-  }
-
-  if (error?.response?.status === 401) {
-    errorTitle = 'Authentication Error';
-    errorMessage = 'Your session has expired. Please log in again.';
-  } else if (error?.response?.status === 403) {
-    errorTitle = 'Permission Denied';
-    errorMessage = 'You do not have permission to perform this action.';
-  } else if (error?.response?.status === 404) {
-    errorTitle = 'Not Found';
-    errorMessage = 'The requested resource was not found.';
-  } else if (error?.response?.status === 422) {
-    errorTitle = 'Validation Error';
-    errorMessage = 'Please check your input and try again.';
-  } else if (error?.response?.status >= 500) {
-    errorTitle = 'Server Error';
-    errorMessage = 'Server error. Please try again later.';
+  if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object') {
+    const response = (error as { response: unknown }).response as {
+      data?: { message?: string; detail?: string };
+      status?: number;
+    };
+    if (response.data?.message) {
+      errorMessage = response.data.message;
+    } else if (response.data?.detail) {
+      errorMessage = response.data.detail;
+    }
+    if (response.status === 401) {
+      errorTitle = 'Authentication Error';
+      errorMessage = 'Your session has expired. Please log in again.';
+    } else if (response.status === 403) {
+      errorTitle = 'Permission Denied';
+      errorMessage = 'You do not have permission to perform this action.';
+    } else if (response.status === 404) {
+      errorTitle = 'Not Found';
+      errorMessage = 'The requested resource was not found.';
+    } else if (response.status === 422) {
+      errorTitle = 'Validation Error';
+      errorMessage = 'Please check your input and try again.';
+    } else if (response.status && response.status >= 500) {
+      errorTitle = 'Server Error';
+      errorMessage = 'Server error. Please try again later.';
+    }
+  } else if (error && typeof error === 'object' && 'message' in error) {
+    errorMessage = (error as { message?: string }).message || errorMessage;
   }
 
   return {

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-// In your imports, add Grid from @mui/material
 import { Grid } from '@mui/material';
-import { GridItem } from '../common/GridItem';
 
 import {
   Box,
@@ -33,15 +31,10 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import {
   BarChart,
-  PieChart,
   LineChart,
-  DollarSign,
-  Clock,
-  FileText,
   TrendingUp,
   TrendingDown,
-  ShoppingBag,
-  AlertTriangle,
+  FileText,
   Download,
   Calendar,
   Filter,
@@ -51,23 +44,6 @@ import { format, subDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { invoiceApi } from '../../services/invoiceApi';
 import { paymentService } from '../../services/paymentService';
 import { Invoice, InvoiceFilters, InvoiceListResponse } from '../../types/invoice';
-
-// Define types for the analytics data
-interface AnalyticsData {
-  labels: string[];
-  datasets: Array<{
-    label: string;
-    data: number[];
-    backgroundColor: string;
-  }>;
-}
-
-interface TopMember {
-  memberId: string;
-  memberName: string;
-  totalAmount: number;
-  invoiceCount: number;
-}
 
 // Define interfaces to match API responses
 interface InvoiceAnalyticsData {
@@ -104,6 +80,15 @@ interface PaymentAnalyticsResponse {
   }>;
 }
 
+// Updated interface to match the actual API response structure
+interface TopMemberApiResponse {
+  memberId: string;
+  memberName: string;
+  totalAmount: number;
+  invoiceCount: number;
+  paidAmount?: number;
+}
+
 interface TopMemberResponse {
   id: string;
   name: string;
@@ -112,18 +97,35 @@ interface TopMemberResponse {
   paidAmount: number;
 }
 
-// Dummy chart components (unchanged for brevity)
-const DummyBarChart = ({ data }: { data: any }) => (
+interface ChartDataItem {
+  label: string;
+  amount: number;
+}
+
+interface PieChartDataItem {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface PaymentMethodItem {
+  method: string;
+  count: number;
+  amount: number;
+}
+
+// Dummy chart components with proper typing
+const DummyBarChart = ({ data }: { data: ChartDataItem[] }) => (
   <Box sx={{ height: 200, bgcolor: 'background.paper', p: 2, position: 'relative' }}>
     <Typography variant="subtitle2" gutterBottom>Bar Chart - Revenue by Period</Typography>
     <Box sx={{ display: 'flex', alignItems: 'flex-end', height: '70%', mt: 2 }}>
-      {data?.map((item: any, index: number) => (
+      {data?.map((item: ChartDataItem, index: number) => (
         <Box 
           key={index}
           sx={{ 
             width: `${100 / (data?.length || 1)}%`, 
             mx: 1,
-            height: `${(item.amount / Math.max(...data?.map((d: any) => d.amount) || 1)) * 100}%`,
+            height: `${(item.amount / Math.max(...data?.map((d: ChartDataItem) => d.amount) || [1])) * 100}%`,
             bgcolor: 'primary.main',
             display: 'flex',
             flexDirection: 'column',
@@ -137,15 +139,15 @@ const DummyBarChart = ({ data }: { data: any }) => (
       ))}
     </Box>
     <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
-      {data?.map((item: any, index: number) => (
+      {data?.map((item: ChartDataItem, index: number) => (
         <Typography key={index} variant="caption">{item.label}</Typography>
       ))}
     </Box>
   </Box>
 );
 
-const DummyPieChart = ({ data }: { data: any }) => {
-  const total = data?.reduce((sum: number, item: any) => sum + item.value, 0) || 1;
+const DummyPieChart = ({ data }: { data: PieChartDataItem[] }) => {
+  const total = data?.reduce((sum: number, item: PieChartDataItem) => sum + item.value, 0) || 1;
   
   return (
     <Box sx={{ height: 200, bgcolor: 'background.paper', p: 2, position: 'relative' }}>
@@ -158,10 +160,10 @@ const DummyPieChart = ({ data }: { data: any }) => {
           position: 'relative',
           overflow: 'hidden',
         }}>
-          {data?.map((item: any, index: number) => {
+          {data?.map((item: PieChartDataItem, index: number) => {
             const percentage = (item.value / total) * 100;
             const previousItems = data.slice(0, index);
-            const previousTotal = previousItems.reduce((sum: number, prev: any) => sum + (prev.value / total) * 100, 0);
+            const previousTotal = previousItems.reduce((sum: number, prev: PieChartDataItem) => sum + (prev.value / total) * 100, 0);
             
             return (
               <Box 
@@ -188,7 +190,7 @@ const DummyPieChart = ({ data }: { data: any }) => {
         </Box>
       </Box>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', mt: 1 }}>
-        {data?.map((item: any, index: number) => (
+        {data?.map((item: PieChartDataItem, index: number) => (
           <Box key={index} sx={{ display: 'flex', alignItems: 'center', mx: 1 }}>
             <Box sx={{ width: 10, height: 10, bgcolor: item.color, mr: 0.5 }} />
             <Typography variant="caption">{item.name} ({Math.round((item.value / total) * 100)}%)</Typography>
@@ -199,16 +201,16 @@ const DummyPieChart = ({ data }: { data: any }) => {
   );
 };
 
-const DummyLineChart = ({ data }: { data: any }) => (
+const DummyLineChart = ({ data }: { data: ChartDataItem[] }) => (
   <Box sx={{ height: 200, bgcolor: 'background.paper', p: 2, position: 'relative' }}>
     <Typography variant="subtitle2" gutterBottom>Line Chart - Payment Trends</Typography>
     <Box sx={{ display: 'flex', alignItems: 'flex-end', height: '70%', mt: 2, position: 'relative' }}>
-      {data?.map((item: any, index: number) => {
+      {data?.map((item: ChartDataItem, index: number) => {
         const nextItem = data[index + 1];
         if (!nextItem) return null;
         
-        const startHeight = (item.amount / Math.max(...data?.map((d: any) => d.amount) || 1)) * 100;
-        const endHeight = (nextItem.amount / Math.max(...data?.map((d: any) => d.amount) || 1)) * 100;
+        const startHeight = (item.amount / Math.max(...data?.map((d: ChartDataItem) => d.amount) || [1])) * 100;
+        const endHeight = (nextItem.amount / Math.max(...data?.map((d: ChartDataItem) => d.amount) || [1])) * 100;
         const width = `${100 / (data?.length - 1)}%`;
         
         return (
@@ -226,13 +228,13 @@ const DummyLineChart = ({ data }: { data: any }) => (
         );
       })}
       
-      {data?.map((item: any, index: number) => (
+      {data?.map((item: ChartDataItem, index: number) => (
         <Box 
           key={`point-${index}`}
           sx={{ 
             position: 'absolute',
             left: `${(index / (data.length - 1)) * 100}%`,
-            bottom: `${(item.amount / Math.max(...data?.map((d: any) => d.amount) || 1)) * 100}%`,
+            bottom: `${(item.amount / Math.max(...data?.map((d: ChartDataItem) => d.amount) || [1])) * 100}%`,
             width: 8,
             height: 8,
             bgcolor: 'primary.main',
@@ -243,7 +245,7 @@ const DummyLineChart = ({ data }: { data: any }) => (
       ))}
     </Box>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-      {data?.map((item: any, index: number) => (
+      {data?.map((item: ChartDataItem, index: number) => (
         index % Math.ceil(data.length / 5) === 0 ? (
           <Typography key={index} variant="caption">{item.label}</Typography>
         ) : null
@@ -277,7 +279,7 @@ export const InvoiceDashboard: React.FC = () => {
     queryKey: ['topMembers', dateRange],
     queryFn: async () => {
       const response = await invoiceApi.getTopMembers(dateRange.start, dateRange.end);
-      return response.map((item: any) => ({
+      return response.map((item: TopMemberApiResponse) => ({
         id: item.memberId,
         name: item.memberName,
         invoiceCount: item.invoiceCount,
@@ -296,26 +298,26 @@ export const InvoiceDashboard: React.FC = () => {
         perPage: 5, 
         sort: 'createdAt:desc' 
       } as InvoiceFilters);
-      return response; // Adjusted to match InvoiceListResponse
+      return response;
     },
   });
   
   const recentInvoices = recentInvoicesResponse?.invoices || [];
 
   // Prepare chart data
-  const invoiceStatusData = [
+  const invoiceStatusData: PieChartDataItem[] = [
     { name: 'Paid', value: invoiceAnalytics?.statusCounts?.paid || 0, color: '#4caf50' },
     { name: 'Pending', value: invoiceAnalytics?.statusCounts?.pending || 0, color: '#ff9800' },
     { name: 'Overdue', value: invoiceAnalytics?.statusCounts?.overdue || 0, color: '#f44336' },
     { name: 'Cancelled', value: invoiceAnalytics?.statusCounts?.cancelled || 0, color: '#9e9e9e' },
   ];
 
-  const revenueByPeriod = invoiceAnalytics?.datasets?.[0]?.data?.map((value: number, index: number) => ({
+  const revenueByPeriod: ChartDataItem[] = invoiceAnalytics?.datasets?.[0]?.data?.map((value: number, index: number) => ({
     label: invoiceAnalytics?.labels?.[index] || '',
     amount: value,
   })) || [];
 
-  const paymentTrends = paymentAnalytics?.paymentsByDay?.map((item: { date: string; amount: number }, index: number) => ({
+  const paymentTrends: ChartDataItem[] = paymentAnalytics?.paymentsByDay?.map((item: { date: string; amount: number }) => ({
     label: item.date,
     amount: item.amount,
   })) || [];
@@ -333,7 +335,7 @@ export const InvoiceDashboard: React.FC = () => {
     setPeriod(e.target.value as 'day' | 'week' | 'month' | 'year');
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -357,6 +359,22 @@ export const InvoiceDashboard: React.FC = () => {
       start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
       end: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
+  };
+
+  // Helper function to get invoice status color
+  const getStatusColor = (status: Invoice['status']): 'success' | 'warning' | 'error' | 'default' => {
+    switch (status) {
+      case 'paid':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'draft':
+        return 'default';
+      case 'cancelled':
+        return 'error';
+      default:
+        return 'default';
+    }
   };
 
   return (
@@ -435,8 +453,8 @@ export const InvoiceDashboard: React.FC = () => {
       </Paper>
 
       {/* Summary Cards */}
-      <Grid  container spacing={3} sx={{ mb: 3 }}>
-        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -453,8 +471,8 @@ export const InvoiceDashboard: React.FC = () => {
               </Box>
             </CardContent>
           </Card>
-        </GridItem >
-        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -471,8 +489,8 @@ export const InvoiceDashboard: React.FC = () => {
               </Box>
             </CardContent>
           </Card>
-        </GridItem >
-        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -489,8 +507,8 @@ export const InvoiceDashboard: React.FC = () => {
               </Box>
             </CardContent>
           </Card>
-        </GridItem >
-        <GridItem xs={12} sm={6} md={3} lg={3} xl={3}>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -507,8 +525,8 @@ export const InvoiceDashboard: React.FC = () => {
               </Box>
             </CardContent>
           </Card>
-        </GridItem >
-      </Grid >
+        </Grid>
+      </Grid>
 
       {/* Tab Navigation */}
       <Paper sx={{ mb: 3 }}>
@@ -533,8 +551,8 @@ export const InvoiceDashboard: React.FC = () => {
 
       {/* Tab Content */}
       {tabValue === 0 && (
-        <Grid  container spacing={3}>
-          <GridItem xs={12} md={8}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
             <Paper sx={{ height: '100%' }}>
               {loadingInvoiceAnalytics ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -544,8 +562,8 @@ export const InvoiceDashboard: React.FC = () => {
                 <DummyBarChart data={revenueByPeriod} />
               )}
             </Paper>
-          </GridItem >
-          <GridItem xs={12} md={4}>
+          </Grid>
+          <Grid item xs={12} md={4}>
             <Paper sx={{ height: '100%' }}>
               {loadingInvoiceAnalytics ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -555,8 +573,8 @@ export const InvoiceDashboard: React.FC = () => {
                 <DummyPieChart data={invoiceStatusData} />
               )}
             </Paper>
-          </GridItem >
-          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
+          </Grid>
+          <Grid item xs={12}>
             <Paper>
               <Box sx={{ p: 2 }}>
                 <Typography variant="h6">Recent Invoices</Typography>
@@ -586,21 +604,17 @@ export const InvoiceDashboard: React.FC = () => {
                         <TableCell colSpan={6} align="center">No recent invoices found.</TableCell>
                       </TableRow>
                     ) : (
-                      recentInvoices?.map((invoice: any) => (
+                      recentInvoices?.map((invoice: Invoice) => (
                         <TableRow key={invoice.id}>
-                          <TableCell>{invoice.invoiceNumber}</TableCell>
-                          <TableCell>{invoice.memberName}</TableCell>
+                          <TableCell>{invoice.number}</TableCell>
+                          <TableCell>{invoice.member.fullName}</TableCell>
                           <TableCell>{format(parseISO(invoice.createdAt), 'PP')}</TableCell>
                           <TableCell>{format(parseISO(invoice.dueDate), 'PP')}</TableCell>
-                          <TableCell>${invoice.totalAmount.toFixed(2)}</TableCell>
+                          <TableCell>${invoice.total.toFixed(2)}</TableCell>
                           <TableCell>
                             <Chip 
                               label={invoice.status}
-                              color={
-                                invoice.status === 'paid' ? 'success' :
-                                invoice.status === 'pending' ? 'warning' :
-                                invoice.status === 'overdue' ? 'error' : 'default'
-                              }
+                              color={getStatusColor(invoice.status)}
                               size="small"
                             />
                           </TableCell>
@@ -611,13 +625,13 @@ export const InvoiceDashboard: React.FC = () => {
                 </Table>
               </TableContainer>
             </Paper>
-          </GridItem >
-        </Grid >
+          </Grid>
+        </Grid>
       )}
 
       {tabValue === 1 && (
-        <GridItem spacing={3}>
-          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
             <Paper>
               {loadingPaymentAnalytics ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -627,8 +641,8 @@ export const InvoiceDashboard: React.FC = () => {
                 <DummyLineChart data={paymentTrends} />
               )}
             </Paper>
-          </GridItem >
-          <GridItem xs={12} sm={12} md={6} lg={6} xl={6}>
+          </Grid>
+          <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
                 <Stack direction="row" alignItems="center" spacing={2}>
@@ -642,8 +656,8 @@ export const InvoiceDashboard: React.FC = () => {
                 </Stack>
               </CardContent>
             </Card>
-          </GridItem >
-          <GridItem xs={12} sm={12} md={6} lg={6} xl={6}>
+          </Grid>
+          <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
                 <Stack direction="row" alignItems="center" spacing={2}>
@@ -657,8 +671,8 @@ export const InvoiceDashboard: React.FC = () => {
                 </Stack>
               </CardContent>
             </Card>
-          </GridItem >
-          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
+          </Grid>
+          <Grid item xs={12}>
             <Paper>
               <Box sx={{ p: 2 }}>
                 <Typography variant="h6">Payment Method Distribution</Typography>
@@ -686,7 +700,7 @@ export const InvoiceDashboard: React.FC = () => {
                         <TableCell colSpan={4} align="center">No payment data available.</TableCell>
                       </TableRow>
                     ) : (
-                      paymentAnalytics?.paymentMethodBreakdown?.map((method: any, index: number) => {
+                      paymentAnalytics?.paymentMethodBreakdown?.map((method: PaymentMethodItem, index: number) => {
                         const percentage = paymentAnalytics?.totalAmount ? (method.amount / paymentAnalytics.totalAmount) * 100 : 0;
                         return (
                           <TableRow key={index}>
@@ -702,13 +716,13 @@ export const InvoiceDashboard: React.FC = () => {
                 </Table>
               </TableContainer>
             </Paper>
-          </GridItem >
-        </GridItem >
+          </Grid>
+        </Grid>
       )}
 
       {tabValue === 2 && (
-        <Grid spacing={3}>
-          <GridItem xs={12} sm={12} md={12} lg={12} xl={12}>
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
             <Paper>
               <Box sx={{ p: 2 }}>
                 <Typography variant="h6">Top Members by Invoice Value</Typography>
@@ -738,7 +752,7 @@ export const InvoiceDashboard: React.FC = () => {
                         <TableCell colSpan={6} align="center">No member data available.</TableCell>
                       </TableRow>
                     ) : (
-                      topMembers?.map((member: any) => {
+                      topMembers?.map((member: TopMemberResponse) => {
                         const paymentRate = member.totalAmount ? (member.paidAmount / member.totalAmount) * 100 : 0;
                         return (
                           <TableRow key={member.id}>
@@ -766,8 +780,8 @@ export const InvoiceDashboard: React.FC = () => {
                 </Table>
               </TableContainer>
             </Paper>
-          </GridItem >
-        </Grid >
+          </Grid>
+        </Grid>
       )}
 
       {/* Export Actions */}

@@ -40,11 +40,20 @@ const exportFormats = [
   { value: 'CSV', label: 'CSV' },
 ];
 
+interface ReportParameters {
+  date_from?: string;
+  date_to?: string;
+  status?: string;
+  member_id?: string;
+  payment_type?: string;
+  days?: string;
+}
+
 interface ReportJob {
   id: number;
   report_type: string;
   export_format: string;
-  parameters: any;
+  parameters: ReportParameters;
   created_at: string;
   status: string;
   completed_at: string | null;
@@ -96,7 +105,7 @@ const ReportGenerator: React.FC = () => {
     
     try {
       // Build parameters based on report type
-      const parameters: any = {};
+      const parameters: ReportParameters = {};
       
       // Add common date filters
       if (dateFrom) {

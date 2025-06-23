@@ -7,20 +7,18 @@ from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from .models import User
 from django.http import HttpResponseRedirect
 
+
 class ChangeRoleForm(forms.Form):
     _selected_action = forms.CharField(widget=forms.MultipleHiddenInput)
     role = forms.ChoiceField(choices=User.ROLE_CHOICES, label='New role')
+
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     list_display = ('username', 'email', 'role', 'is_active', 'is_staff', 'is_superuser')
     list_filter = ('role', 'is_active', 'is_staff', 'is_superuser')
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ('Role info', {'fields': ('role',)}),
-    )
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('Role info', {'fields': ('role',)}),
-    )
+    fieldsets = BaseUserAdmin.fieldsets + (('Role info', {'fields': ('role',)}),)
+    add_fieldsets = BaseUserAdmin.add_fieldsets + (('Role info', {'fields': ('role',)}),)
 
     actions = ['change_role_action']
 
@@ -41,13 +39,20 @@ class UserAdmin(BaseUserAdmin):
                 self.message_user(request, f"Changed role for {count} users.")
                 return HttpResponseRedirect(reverse('admin:authentication_user_changelist'))
         if not form:
-            form = ChangeRoleForm(initial={'_selected_action': request.POST.getlist(ACTION_CHECKBOX_NAME)})
-        return render(request, 'admin/change_role.html', {
-            'users': queryset,
-            'form': form,
-            'title': 'Change role for selected users',
-            'action_checkbox_name': ACTION_CHECKBOX_NAME,
-        })
+            form = ChangeRoleForm(
+                initial={'_selected_action': request.POST.getlist(ACTION_CHECKBOX_NAME)}
+            )
+        return render(
+            request,
+            'admin/change_role.html',
+            {
+                'users': queryset,
+                'form': form,
+                'title': 'Change role for selected users',
+                'action_checkbox_name': ACTION_CHECKBOX_NAME,
+            },
+        )
+
     change_role_action.short_description = 'Change role for selected users'
 
     def change_role(self, request):

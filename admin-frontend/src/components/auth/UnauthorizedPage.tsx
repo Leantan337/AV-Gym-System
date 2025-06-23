@@ -20,7 +20,7 @@ const UnauthorizedPage: React.FC = () => {
         <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
         
         <p className="mb-4 text-gray-600">
-          You don't have permission to access this resource. This area requires elevated privileges.
+          You do not have permission to access this resource. This area requires elevated privileges.
         </p>
         
         {user && (

@@ -6,7 +6,6 @@ import {
   DialogActions,
   TextField,
   Button,
-  Grid,
   MenuItem,
   FormControl,
   InputLabel,
@@ -17,18 +16,17 @@ import {
   Chip,
   Divider,
   FormHelperText,
-  RadioGroup,
-  Radio,
-  FormControlLabel,
-  Avatar
+  Avatar,
+  SelectChangeEvent
 } from '@mui/material';
-import { Close as CloseIcon, Add as AddIcon } from '@mui/icons-material';
+import { Close as CloseIcon } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Use relative import that will work once all files are created
+// Use the types from member.types.ts
 import { Member, MemberCreateUpdate } from '../../types/member.types';
+import { adminApi } from '../../services/api';
 
 // Temporary placeholder until PhotoUploadComponent is available
 const PhotoUploadComponent = ({ initialPhotoUrl, onPhotoSelect }: { initialPhotoUrl?: string; onPhotoSelect: (file: File | null) => void }) => {
@@ -53,7 +51,6 @@ const PhotoUploadComponent = ({ initialPhotoUrl, onPhotoSelect }: { initialPhoto
     </Box>
   );
 };
-import { adminApi } from '../../services/api';
 
 interface MemberFormProps {
   open: boolean;
@@ -114,9 +111,28 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
     return formData;
   };
 
+  // Transform data to match API expectations
+  const transformToApiFormat = (data: MemberCreateUpdate) => {
+    return {
+      fullName: `${data.first_name} ${data.last_name}`,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      membershipNumber: `GYM${Date.now()}`, // Generate or use existing
+      status: data.membership.status,
+      membership: {
+        plan: data.membership.type,
+        startDate: data.membership.join_date,
+        endDate: data.membership.expiry_date,
+      },
+      emergencyContact: data.emergency_contact,
+      accessPrivileges: data.access_privileges,
+    };
+  };
+
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: any) => adminApi.createMember(data),
+    mutationFn: (data: MemberCreateUpdate) => adminApi.createMember(transformToApiFormat(data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
       onClose(true);
@@ -129,8 +145,8 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => 
-      adminApi.updateMember(id, data),
+    mutationFn: ({ id, data }: { id: string; data: MemberCreateUpdate }) => 
+      adminApi.updateMember(id, transformToApiFormat(data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
       onClose(true);
@@ -184,11 +200,46 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
     setErrors({});
   }, [member, open]);
 
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }> | any) => {
-    // Handle both React.ChangeEvent and Material-UI's Select onChange
-    const name = e.target?.name;
-    const value = e.target?.value;
+  // Handle input changes for TextField components
+  const handleTextFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const name = e.target.name;
+    const value = e.target.value;
+    
+    if (!name) return;
+    
+    // Handle nested objects (membership, emergency_contact)
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData(prev => {
+        // Get the parent object or use empty object as fallback
+        const parentObj = prev[parent as keyof typeof prev] || {};
+        
+        return {
+          ...prev,
+          [parent]: {
+            ...(parentObj as object), // Cast to object to ensure it can be spread
+            [child]: value,
+          },
+        };
+      });
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+
+    // Clear error for this field if exists
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle Select changes
+  const handleSelectChange = (e: SelectChangeEvent<string>) => {
+    const name = e.target.name;
+    const value = e.target.value;
     
     if (!name) return;
     
@@ -403,7 +454,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="First Name"
                   name="first_name"
                   value={formData.first_name}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['first_name']}
                   helperText={errors['first_name']}
                   required
@@ -415,7 +466,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="Last Name"
                   name="last_name"
                   value={formData.last_name}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['last_name']}
                   helperText={errors['last_name']}
                   required
@@ -428,7 +479,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   type="email"
                   name="email"
                   value={formData.email}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['email']}
                   helperText={errors['email']}
                   required
@@ -440,7 +491,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="Phone"
                   name="phone"
                   value={formData.phone}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['phone']}
                   helperText={errors['phone']}
                   required
@@ -452,7 +503,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="Address"
                   name="address"
                   value={formData.address}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['address']}
                   helperText={errors['address']}
                   required
@@ -473,7 +524,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                     labelId="membership-type-label"
                     name="membership.type"
                     value={formData.membership.type}
-                    onChange={handleChange}
+                    onChange={handleSelectChange}
                     label="Membership Type"
                     required
                   >
@@ -493,7 +544,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                     labelId="membership-status-label"
                     name="membership.status"
                     value={formData.membership.status}
-                    onChange={handleChange}
+                    onChange={handleSelectChange}
                     label="Status"
                   >
                     <MenuItem value="active">Active</MenuItem>
@@ -550,7 +601,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="Name"
                   name="emergency_contact.name"
                   value={formData.emergency_contact.name}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['emergency_contact.name']}
                   helperText={errors['emergency_contact.name']}
                   required
@@ -562,7 +613,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="Phone"
                   name="emergency_contact.phone"
                   value={formData.emergency_contact.phone}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['emergency_contact.phone']}
                   helperText={errors['emergency_contact.phone']}
                   required
@@ -574,7 +625,7 @@ function MemberForm({ open, member, onClose }: MemberFormProps) {
                   label="Relationship"
                   name="emergency_contact.relationship"
                   value={formData.emergency_contact.relationship}
-                  onChange={handleChange}
+                  onChange={handleTextFieldChange}
                   error={!!errors['emergency_contact.relationship']}
                   helperText={errors['emergency_contact.relationship']}
                   required

@@ -12,11 +12,9 @@ websocket_urlpatterns = [
     re_path(r'^ws/checkins/?$', CheckInConsumer.as_asgi()),
 ]
 
-application = ProtocolTypeRouter({
-    "http": django_asgi_app,
-    "websocket": JWTAuthMiddleware(
-        URLRouter(
-            websocket_urlpatterns
-        )
-    ),
-})
+application = ProtocolTypeRouter(
+    {
+        "http": django_asgi_app,
+        "websocket": JWTAuthMiddleware(URLRouter(websocket_urlpatterns)),
+    }
+)

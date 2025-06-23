@@ -18,7 +18,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
-import { X, Send, AlertTriangle, CheckCircle, Eye, Code } from 'lucide-react';
+import { X, Send, AlertTriangle, Eye, Code } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { invoiceApi } from '../../services/invoiceApi';
 import { Invoice } from '../../types/invoice';

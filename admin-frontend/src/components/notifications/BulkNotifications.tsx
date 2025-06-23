@@ -22,28 +22,16 @@ import {
   FormControlLabel,
   Switch,
   Divider,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tooltip,
-  IconButton,
-  OutlinedInput
+  OutlinedInput,
+  SelectChangeEvent
 } from '@mui/material';
 import {
   Send as SendIcon,
   Refresh as RefreshIcon,
   Preview as PreviewIcon,
-  PersonSearch as PersonSearchIcon,
-  FilterList as FilterIcon,
-  Save as SaveIcon
+  PersonSearch as PersonSearchIcon
 } from '@mui/icons-material';
 import axios from 'axios';
-import { format } from 'date-fns';
-import { NotificationType } from '../../types/notification.types';
-import GridItem from '../common/GridItem';
 
 interface Member {
   id: string;
@@ -154,7 +142,7 @@ const BulkNotifications: React.FC = () => {
   };
 
   // Handle form data changes
-  const handleFormChange = (name: string, value: any) => {
+  const handleFormChange = (name: string, value: string | boolean | string[]) => {
     setFormData({
       ...formData,
       [name]: value
@@ -162,7 +150,7 @@ const BulkNotifications: React.FC = () => {
   };
 
   // Handle member selection changes
-  const handleMemberSelection = (event: any) => {
+  const handleMemberSelection = (event: SelectChangeEvent<string[]>) => {
     const selectedIds = event.target.value as string[];
     handleFormChange('selected_members', selectedIds);
   };
@@ -211,7 +199,7 @@ const BulkNotifications: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.post('/api/notifications/bulk-send/', {
+      await axios.post('/api/notifications/bulk-send/', {
         template_id: formData.template_id,
         member_ids: formData.selected_members,
         send_email: formData.send_email,
@@ -276,7 +264,7 @@ const BulkNotifications: React.FC = () => {
           <InputLabel>Notification Template</InputLabel>
           <Select
             value={formData.template_id}
-            onChange={(e) => handleFormChange('template_id', e.target.value)}
+            onChange={(e) => handleFormChange('template_id', e.target.value as string)}
             label="Notification Template"
           >
             {templates.map((template) => (

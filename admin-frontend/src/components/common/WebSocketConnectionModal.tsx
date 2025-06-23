@@ -16,7 +16,7 @@ import WifiOffIcon from '@mui/icons-material/WifiOff';
 import SyncIcon from '@mui/icons-material/Sync';
 
 const WebSocketConnectionModal: React.FC = () => {
-  const { connectionStatus, reconnect, isConnected } = useWebSocket();
+  const { connectionStatus, reconnect } = useWebSocket();
   const [open, setOpen] = useState(false);
   const [attempting, setAttempting] = useState(false);
   const [attemptCount, setAttemptCount] = useState(0);

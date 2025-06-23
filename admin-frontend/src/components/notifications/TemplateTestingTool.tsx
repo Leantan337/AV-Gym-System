@@ -11,7 +11,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip,
   Alert,
   AlertTitle,
   Divider,
@@ -33,7 +32,6 @@ import TestIcon from '@mui/icons-material/BugReport';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from 'axios';
 import GridItem from '../common/GridItem';
-import { ExtendedGridProps } from '../../types/mui.types';
 
 interface Template {
   id: string;
@@ -51,7 +49,7 @@ interface TestResult {
   subject: string;
   body_text: string;
   body_html?: string;
-  data_used: Record<string, any>;
+  data_used: Record<string, string>;
 }
 
 const defaultTestData = {
@@ -145,8 +143,6 @@ const TemplateTestingTool: React.FC = () => {
           setLoading(false);
           return;
         }
-        
-        const recipient = recipients.find(r => r.id === selectedRecipient);
         
         await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
         
@@ -335,7 +331,7 @@ const TemplateTestingTool: React.FC = () => {
                 </Paper>
               </Box>
               
-              <Tabs value={previewTab} onChange={(e, val) => setPreviewTab(val)}>
+              <Tabs value={previewTab} onChange={(_, val) => setPreviewTab(val)}>
                 <Tab label="Text Version" />
                 {testResult.body_html && <Tab label="HTML Version" />}
               </Tabs>

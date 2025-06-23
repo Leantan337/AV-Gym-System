@@ -5,7 +5,6 @@ import {
   Typography,
   Avatar,
   IconButton,
-  CircularProgress,
   Paper,
   Slider,
   Dialog,
@@ -33,7 +32,6 @@ export default function PhotoUploadComponent({
   onPhotoSelect,
 }: PhotoUploadComponentProps) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(initialPhotoUrl || null);
-  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const [crop, setCrop] = useState<Crop>({
@@ -147,23 +145,6 @@ export default function PhotoUploadComponent({
     }
   };
 
-  // Handle crop changes
-  const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    const { width, height } = e.currentTarget;
-    const cropWidthInPercent = (width * 0.9) / width * 100;
-    const cropHeightInPercent = (height * 0.9) / height * 100;
-    
-    const percentageCrop: Crop = {
-      unit: '%' as '%', // Type assertion to ensure unit is correctly typed
-      width: cropWidthInPercent,
-      height: cropHeightInPercent,
-      x: (100 - cropWidthInPercent) / 2,
-      y: (100 - cropHeightInPercent) / 2,
-    };
-    
-    setCrop(percentageCrop);
-  };
-  
   // Handle crop completion
   const handleCropComplete = (crop: Crop) => {
     // Store the crop data for later use when completing the crop operation
@@ -289,7 +270,7 @@ export default function PhotoUploadComponent({
   };
 
   // Handle zoom change
-  const handleZoomChange = (event: Event, newValue: number | number[]) => {
+  const handleZoomChange = (_event: Event, newValue: number | number[]) => {
     setZoom(newValue as number);
   };
 
@@ -384,24 +365,6 @@ export default function PhotoUploadComponent({
               )}
             </>
           )}
-          
-          {isUploading && (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: 'rgba(255, 255, 255, 0.7)',
-              }}
-            >
-              <CircularProgress size={40} />
-            </Box>
-          )}
         </Paper>
         
         {/* Upload/Remove Buttons */}
@@ -471,27 +434,23 @@ export default function PhotoUploadComponent({
           <Typography variant="h6" gutterBottom>Crop Photo</Typography>
           <Box sx={{ overflow: 'hidden', maxWidth: '100%', maxHeight: '70vh' }}>
             {tempImageUrl && (
-              /* @ts-ignore - Ignoring type errors for ReactCrop as the type definitions don't match library behavior */
-              <ReactCrop
-                crop={crop}
-                onChange={(c) => setCrop(c)}
-                onComplete={handleCropComplete}
-                aspect={1} // 1:1 aspect ratio for avatar
-                circularCrop
-                ruleOfThirds={true} // Helpful grid for better composition
-              >
-                <img
-                  ref={(img) => { imageRef.current = img; }}
+              <div style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}>
+                <ReactCrop
+                  crop={crop}
+                  onChange={(c) => setCrop(c)}
+                  onComplete={handleCropComplete}
                   src={tempImageUrl}
-                  alt="Upload Preview"
-                  style={{ 
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'center',
+                  imageStyle={{
                     maxWidth: '100%',
                     transition: 'transform 0.3s'
                   }}
+                  onImageLoaded={(img) => {
+                    if (imageRef && 'current' in imageRef) {
+                      (imageRef as React.MutableRefObject<HTMLImageElement | null>).current = img;
+                    }
+                  }}
                 />
-              </ReactCrop>
+              </div>
             )}
           </Box>
           

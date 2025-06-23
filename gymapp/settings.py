@@ -143,7 +143,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-    ]
+    ],
 }
 
 SIMPLE_JWT = {
@@ -267,10 +267,10 @@ SECURE_HSTS_PRELOAD = False  # Set to True in production
 
 # Add Security Headers
 SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS = {
-    # Allow all connections during development 
+    # Allow all connections during development
     'Content-Security-Policy': "default-src 'self'; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://127.0.0.1:3000 ws://localhost:* ws://127.0.0.1:* *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *; font-src 'self' data: *; frame-src 'self'; object-src 'none';",
     # Set report-only mode for development
-    'Content-Security-Policy-Report-Only': "default-src 'self';"
+    'Content-Security-Policy-Report-Only': "default-src 'self';",
 }
 
 # CSP Configuration completely handled by SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS above
@@ -288,7 +288,11 @@ SESSION_COOKIE_SECURE = False
 CSRF_USE_SESSIONS = False
 
 # Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = (
+    'django.core.mail.backends.console.EmailBackend'
+    if DEBUG
+    else 'django.core.mail.backends.smtp.EmailBackend'
+)
 EMAIL_HOST = 'smtp.example.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True

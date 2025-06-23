@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-// In your imports, add Grid from @mui/material
 import { Grid } from '@mui/material';
-import { GridItem } from '../common/GridItem';
 import {
   Box,
   Card,
@@ -35,21 +33,17 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import {
-  CreditCard,
   DollarSign,
   CheckCircle,
   XCircle,
   RotateCcw,
   AlertCircle,
   Printer,
-  FileText,
   Send,
   Download,
   Plus,
-  ClipboardList,
 } from 'lucide-react';
-import { paymentService, Payment, PaymentMethod } from '../../services/paymentService';
-import { invoiceApi } from '../../services/invoiceApi';
+import { paymentService, Payment } from '../../services/paymentService';
 import { emailService } from '../../services/emailService';
 
 interface PaymentFormData {
@@ -63,7 +57,6 @@ interface PaymentManagerProps {
   invoiceId: string;
   invoiceTotal: number;
   invoiceBalance: number;
-  memberId: string;
   onPaymentUpdate?: () => void;
 }
 
@@ -71,7 +64,6 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
   invoiceId,
   invoiceTotal,
   invoiceBalance,
-  memberId,
   onPaymentUpdate,
 }) => {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -92,12 +84,6 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
   const { data: payments, isLoading: loadingPayments } = useQuery({
     queryKey: ['payments', invoiceId],
     queryFn: () => paymentService.getInvoicePayments(invoiceId),
-  });
-
-  // Get member's payment methods
-  const { data: paymentMethods, isLoading: loadingPaymentMethods } = useQuery({
-    queryKey: ['paymentMethods', memberId],
-    queryFn: () => paymentService.getMemberPaymentMethods(memberId),
   });
 
   // Mutations
@@ -127,7 +113,7 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
   });
 
   const sendReceiptMutation = useMutation({
-    mutationFn: (paymentId: string) => {
+    mutationFn: () => {
       // This is a placeholder - actual implementation would depend on your API
       return emailService.sendEmail({
         to: 'member@example.com', // Would be dynamically fetched
@@ -186,7 +172,7 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
 
   const handleSendReceipt = (payment: Payment) => {
     setSelectedPayment(payment);
-    sendReceiptMutation.mutate(payment.id);
+    sendReceiptMutation.mutate();
   };
 
   const getPaymentStatusChip = (status: Payment['status']) => {
@@ -213,13 +199,6 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
       .reduce((sum, payment) => sum + payment.amount, 0);
   };
 
-  const getTotalRefunded = () => {
-    if (!payments) return 0;
-    return payments
-      .filter(p => p.status === 'refunded')
-      .reduce((sum, payment) => sum + (payment.refundAmount || 0), 0);
-  };
-
   return (
     <Box>
       <Card sx={{ mb: 3 }}>
@@ -239,26 +218,26 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({
           <Divider sx={{ my: 2 }} />
 
           <Grid container spacing={2}>
-            <GridItem xs={12} md={4}>
+            <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                 <Typography variant="subtitle2" gutterBottom>Total Amount</Typography>
                 <Typography variant="h5" color="text.primary">${invoiceTotal.toFixed(2)}</Typography>
               </Paper>
-            </GridItem>
-            <GridItem xs={12} md={4}>
+            </Grid>
+            <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                 <Typography variant="subtitle2" gutterBottom>Paid Amount</Typography>
                 <Typography variant="h5" color="success.main">${getTotalPaid().toFixed(2)}</Typography>
               </Paper>
-            </GridItem>
-            <GridItem xs={12} md={4}>
+            </Grid>
+            <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                 <Typography variant="subtitle2" gutterBottom>Balance Due</Typography>
                 <Typography variant="h5" color={invoiceBalance > 0 ? 'error.main' : 'text.primary'}>
                   ${invoiceBalance.toFixed(2)}
                 </Typography>
               </Paper>
-            </GridItem>
+            </Grid>
           </Grid>
         </CardContent>
       </Card>

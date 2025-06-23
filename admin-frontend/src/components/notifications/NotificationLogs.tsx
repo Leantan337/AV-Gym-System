@@ -36,7 +36,6 @@ import {
   Search as SearchIcon, 
   FilterList as FilterIcon,
   Clear as ClearIcon,
-  Email as EmailIcon,
   CalendarToday as CalendarIcon,
   Visibility as VisibilityIcon
 } from '@mui/icons-material';

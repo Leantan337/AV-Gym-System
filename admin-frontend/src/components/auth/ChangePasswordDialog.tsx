@@ -17,6 +17,18 @@ interface ChangePasswordDialogProps {
   onClose: () => void;
 }
 
+interface ApiError {
+  response?: {
+    data?: {
+      current_password?: string[];
+      new_password?: string[];
+      confirm_password?: string[];
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
 const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onClose }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -76,14 +88,15 @@ const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onClo
         onClose();
       }, 2000);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password change failed:', error);
+      const apiError = error as ApiError;
       setMessage({
         type: 'error',
-        text: error.response?.data?.current_password?.[0] || 
-              error.response?.data?.new_password?.[0] || 
-              error.response?.data?.confirm_password?.[0] || 
-              error.response?.data?.message || 
+        text: apiError.response?.data?.current_password?.[0] || 
+              apiError.response?.data?.new_password?.[0] || 
+              apiError.response?.data?.confirm_password?.[0] || 
+              apiError.response?.data?.message || 
               'Failed to change password. Please try again.'
       });
     } finally {
@@ -173,4 +186,4 @@ const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onClo
   );
 };
 
-export default ChangePasswordDialog; 
+export default ChangePasswordDialog;

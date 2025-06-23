@@ -152,7 +152,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan }) => {
       )}
       
       <Typography variant="body2" color="text.secondary" align="center">
-        Scan a member's card using the barcode scanner or enter the code manually
+        Scan a member&apos;s card using the barcode scanner or enter the code manually
       </Typography>
 
       <Box sx={{ width: '100%', display: 'flex', gap: 1 }}>

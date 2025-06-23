@@ -1,8 +1,6 @@
 import { ElementType, ReactNode } from 'react';
 import { Theme } from '@mui/material/styles';
 import { SxProps } from '@mui/system';
-import { GridProps as MuiGridProps } from '@mui/material';
-import { SystemProps } from '@mui/system';
 
 // Defining explicit props for Grid to avoid TypeScript errors
 export interface GridProps {

@@ -41,9 +41,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "image",
-                    models.ImageField(
-                        blank=True, null=True, upload_to="member_images/"
-                    ),
+                    models.ImageField(blank=True, null=True, upload_to="member_images/"),
                 ),
                 ("notes", models.TextField(blank=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),

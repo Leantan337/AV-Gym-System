@@ -12,7 +12,6 @@ import {
   TableHead,
   TableRow,
   Button,
-  Stack,
   IconButton,
   Dialog,
   DialogTitle,
@@ -20,9 +19,7 @@ import {
   DialogActions,
   TextField,
   Alert,
-  Grid,
   CircularProgress,
-  Tooltip,
   Card,
   CardContent,
 } from '@mui/material';
@@ -34,7 +31,6 @@ import {
   CreditCard, 
   Clock, 
   CheckCircle,
-  AlertTriangle,
   DollarSign,
   X,
 } from 'lucide-react';
@@ -74,15 +70,7 @@ interface ExtendedInvoice extends Invoice {
 }
 
 // Alias for backward compatibility
-interface InvoiceWithPayments extends ExtendedInvoice {}
-
-// Payment status colors
-const statusColors: Record<Invoice['status'], string> = {
-  draft: '#9e9e9e',      // grey
-  pending: '#1976d2',    // blue
-  paid: '#2e7d32',       // green
-  cancelled: '#d32f2f',  // red
-};
+type InvoiceWithPayments = ExtendedInvoice
 
 // Get status color
 const getStatusColor = (status: Invoice['status']) => {
@@ -179,7 +167,7 @@ const EmailDialog: React.FC<EmailDialogProps> = ({
   );
 };
 
-const InvoiceDetailPage: React.FC = () => {
+const InvoiceDetailPageComponent: React.FC = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -193,13 +181,6 @@ const InvoiceDetailPage: React.FC = () => {
     enabled: !!invoiceId,
   });
 
-  // Calculate paid amount
-  const paidAmount = invoice?.payments?.reduce(
-    (sum: number, payment: Payment) => sum + (payment?.amount || 0), 
-    0
-  ) || 0;
-  const balanceDue = (invoice?.total || 0) - paidAmount;
-
   // Calculate total
   const calculateTotal = (items: Invoice['items'] = []): number => {
     if (!items || !Array.isArray(items)) return 0;
@@ -211,7 +192,7 @@ const InvoiceDetailPage: React.FC = () => {
   };
 
   // Calculate tax
-  const calculateTax = (subtotal: number, taxRate: number = 0): number => {
+  const calculateTax = (subtotal: number, taxRate = 0): number => {
     const rate = Number(taxRate) || 0;
     if (rate <= 0) return 0;
     return subtotal * (rate / 100);
@@ -281,8 +262,10 @@ const InvoiceDetailPage: React.FC = () => {
     window.print();
   };
 
-  const handleSendEmail = () => {
-    if (invoice) {
+  const handleSendEmail = (email?: string) => {
+    if (invoice && email) {
+      sendEmailMutation.mutate({ invoiceId: invoice.id, email });
+    } else if (invoice) {
       setEmailDialogOpen(true);
     }
   };
@@ -291,11 +274,6 @@ const InvoiceDetailPage: React.FC = () => {
     if (invoice?.status === 'pending' && invoice?.id) {
       markAsPaidMutation.mutate(invoice.id);
     }
-  };
-
-  // Handle dialog close
-  const handleDialogClose = (): void => {
-    setEmailDialogOpen(false);
   };
 
   // Format date
@@ -374,7 +352,7 @@ const InvoiceDetailPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<Mail size={18} />}
-            onClick={handleSendEmail}
+            onClick={() => handleSendEmail()}
             disabled={sendEmailMutation.isPending}
           >
             {sendEmailMutation.isPending ? 'Sending...' : 'Send Email'}
@@ -634,3 +612,5 @@ const InvoiceDetailPage: React.FC = () => {
     </Box>
   );
 };
+
+export default InvoiceDetailPageComponent;

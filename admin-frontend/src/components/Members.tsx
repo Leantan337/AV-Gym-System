@@ -64,12 +64,6 @@ export const Members: React.FC = () => {
     enabled: !!selectedMember
   });
 
-  const { data: selectedMemberData } = useQuery<Member | null>({
-    queryKey: ['member', selectedMember],
-    queryFn: () => selectedMember ? adminApi.getMemberById(selectedMember) : null,
-    enabled: !!selectedMember
-  });
-
   const bulkActionMutation = useMutation<
     unknown,
     Error,

@@ -13,12 +13,9 @@ class UserRole(models.TextChoices):
 
 class User(AbstractUser):
     """Custom user model with role-based access control."""
-    
+
     role = models.CharField(
-        max_length=20,
-        choices=UserRole.choices,
-        default=UserRole.STAFF,
-        verbose_name=_('Role')
+        max_length=20, choices=UserRole.choices, default=UserRole.STAFF, verbose_name=_('Role')
     )
     phone = models.CharField(max_length=20, blank=True, verbose_name=_('Phone Number'))
     is_active = models.BooleanField(default=True, verbose_name=_('Active'))

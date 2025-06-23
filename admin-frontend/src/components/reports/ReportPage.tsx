@@ -7,8 +7,6 @@ import {
   Tabs,
   Tab,
   CircularProgress,
-  Button,
-  IconButton,
   Grid,
 } from '@mui/material';
 import ReportGenerator from './ReportGenerator';
@@ -53,7 +51,7 @@ const ReportPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [recentReports, setRecentReports] = useState<ReportJobSummary[]>([]);
   
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
   

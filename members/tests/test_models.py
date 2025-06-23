@@ -17,20 +17,14 @@ class MemberModelTest(TestCase):
         """Set up test data"""
         # Create a test user
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
-            password='testpass123',
-            role='STAFF'
+            username='testuser', email='test@example.com', password='testpass123', role='STAFF'
         )
-        
+
         # Create a test plan
         self.plan = MembershipPlan.objects.create(
-            name='Basic Plan',
-            price=Decimal('29.99'),
-            duration_days=30,
-            billing_frequency='monthly'
+            name='Basic Plan', price=Decimal('29.99'), duration_days=30, billing_frequency='monthly'
         )
-        
+
         # Create a test member
         self.member = Member.objects.create(
             membership_number='MEM001',
@@ -38,7 +32,7 @@ class MemberModelTest(TestCase):
             phone='+1234567890',
             address='123 Main St, City, State',
             status='active',
-            notes='Test member'
+            notes='Test member',
         )
 
     def test_member_creation(self):
@@ -65,7 +59,7 @@ class MemberModelTest(TestCase):
                 full_name='Jane Doe',
                 phone='+1234567891',
                 address='456 Oak St, City, State',
-                status='active'
+                status='active',
             )
 
     def test_member_image_upload(self):
@@ -75,14 +69,14 @@ class MemberModelTest(TestCase):
             # Create a simple test image
             image = Image.new('RGB', (100, 100), color='red')
             image.save(tmp_file.name, 'JPEG')
-            
+
             # Test image upload
             with open(tmp_file.name, 'rb') as img_file:
                 self.member.image.save('test_image.jpg', img_file, save=True)
-            
+
             # Clean up temporary file
             os.unlink(tmp_file.name)
-        
+
         # Verify image was saved
         self.assertIsNotNone(self.member.image)
         self.assertTrue(self.member.image.name.endswith('test_image.jpg'))
@@ -95,31 +89,31 @@ class MemberModelTest(TestCase):
             full_name='Jane Smith',
             phone='+1234567891',
             address='456 Oak St, City, State',
-            status='active'
+            status='active',
         )
-        
+
         Member.objects.create(
             membership_number='MEM003',
             full_name='Bob Johnson',
             phone='+1234567892',
             address='789 Pine St, City, State',
-            status='inactive'
+            status='inactive',
         )
-        
+
         # Test search by full name
         results = Member.objects.filter(full_name__icontains='John')
         self.assertEqual(results.count(), 1)
         self.assertEqual(results.first(), self.member)
-        
+
         # Test search by membership number
         results = Member.objects.filter(membership_number__icontains='MEM002')
         self.assertEqual(results.count(), 1)
         self.assertEqual(results.first().full_name, 'Jane Smith')
-        
+
         # Test search by status
         results = Member.objects.filter(status='active')
         self.assertEqual(results.count(), 2)
-        
+
         results = Member.objects.filter(status='inactive')
         self.assertEqual(results.count(), 1)
 
@@ -127,14 +121,14 @@ class MemberModelTest(TestCase):
         """Test member status field choices"""
         # Test valid status choices
         valid_statuses = ['active', 'inactive']
-        
+
         for status in valid_statuses:
             member = Member(
                 membership_number=f'MEM{status}',
                 full_name=f'Test {status}',
                 phone='+1234567890',
                 address='Test Address',
-                status=status
+                status=status,
             )
             try:
                 member.full_clean()
@@ -148,16 +142,12 @@ class MemberModelTest(TestCase):
             self.member.clean()
         except ValidationError:
             self.fail("Valid member should not raise ValidationError")
-        
+
         # Test member with invalid data
         invalid_member = Member(
-            membership_number='',
-            full_name='',
-            phone='',
-            address='',
-            status='invalid_status'
+            membership_number='', full_name='', phone='', address='', status='invalid_status'
         )
-        
+
         with self.assertRaises(ValidationError):
             invalid_member.clean()
 
@@ -166,10 +156,10 @@ class MemberModelTest(TestCase):
         # Test automatic field updates
         original_updated_at = self.member.updated_at
         timezone.sleep(1)  # Ensure time difference
-        
+
         self.member.full_name = 'Updated Name'
         self.member.save()
-        
+
         self.assertGreater(self.member.updated_at, original_updated_at)
 
     def test_member_ordering(self):
@@ -180,17 +170,17 @@ class MemberModelTest(TestCase):
             full_name='Alice Brown',
             phone='+1234567893',
             address='Test Address 1',
-            status='active'
+            status='active',
         )
-        
+
         member2 = Member.objects.create(
             membership_number='MEM005',
             full_name='Charlie Davis',
             phone='+1234567894',
             address='Test Address 2',
-            status='active'
+            status='active',
         )
-        
+
         # Test ordering by created_at (newest first)
         members = Member.objects.all().order_by('-created_at')
         self.assertEqual(members[0], member2)  # Most recent
@@ -202,7 +192,7 @@ class MemberModelTest(TestCase):
         # Delete member
         member_id = self.member.id
         self.member.delete()
-        
+
         # Verify member is deleted
         self.assertFalse(Member.objects.filter(id=member_id).exists())
 
@@ -222,9 +212,9 @@ class MemberModelTest(TestCase):
             'image': 'Image',
             'notes': 'Notes',
             'created_at': 'Created At',
-            'updated_at': 'Updated At'
+            'updated_at': 'Updated At',
         }
-        
+
         for field_name, expected_verbose_name in field_names.items():
             field = Member._meta.get_field(field_name)
             self.assertEqual(field.verbose_name, expected_verbose_name)
@@ -233,11 +223,11 @@ class MemberModelTest(TestCase):
         """Test member user relationship"""
         # Test member without user
         self.assertIsNone(self.member.user)
-        
+
         # Test member with user
         self.member.user = self.user
         self.member.save()
-        
+
         self.assertEqual(self.member.user, self.user)
         self.assertEqual(self.user.member, self.member)
 
@@ -249,21 +239,21 @@ class MemberModelTest(TestCase):
             full_name='Active Member',
             phone='+1234567895',
             address='Test Address',
-            status='active'
+            status='active',
         )
-        
+
         inactive_member = Member.objects.create(
             membership_number='MEM007',
             full_name='Inactive Member',
             phone='+1234567896',
             address='Test Address',
-            status='inactive'
+            status='inactive',
         )
-        
+
         # Test filtering by active status
         active_members = Member.objects.filter(status='active')
         self.assertEqual(active_members.count(), 2)  # Original member + active member
-        
+
         inactive_members = Member.objects.filter(status='inactive')
         self.assertEqual(inactive_members.count(), 1)
-        self.assertEqual(inactive_members.first().full_name, 'Inactive Member') 
+        self.assertEqual(inactive_members.first().full_name, 'Inactive Member')
