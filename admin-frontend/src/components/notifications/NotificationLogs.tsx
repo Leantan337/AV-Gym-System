@@ -146,7 +146,7 @@ const NotificationLogs: React.FC = () => {
     }
   };
   
-  const handleChangePage = (event: unknown, newPage: number) => {
+  const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
   };
   
@@ -429,7 +429,7 @@ const NotificationLogs: React.FC = () => {
                   <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
                     <Tabs 
                       value={detailsTab} 
-                      onChange={(e, newValue) => setDetailsTab(newValue)}
+                      onChange={(_event, newValue) => setDetailsTab(newValue)}
                     >
                       <Tab label="Text Content" />
                       {selectedLog.content_html && <Tab label="HTML Content" />}

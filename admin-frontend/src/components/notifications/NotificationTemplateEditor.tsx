@@ -152,7 +152,7 @@ const NotificationTemplateEditor: React.FC = () => {
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
@@ -561,7 +561,7 @@ const NotificationTemplateEditor: React.FC = () => {
                 </Paper>
               </Box>
               
-              <Tabs value={previewTab} onChange={(e, val) => setPreviewTab(val)}>
+              <Tabs value={previewTab} onChange={(_e, val) => setPreviewTab(val)}>
                 <Tab label="Text Version" />
                 {previewData.body_html && <Tab label="HTML Version" />}
               </Tabs>

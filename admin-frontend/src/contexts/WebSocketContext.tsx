@@ -51,8 +51,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
         console.log('WebSocket status in context changed to:', status);
         setConnectionStatus(status);
         setIsConnected(status === 'connected');
-      },
-      true
+      }
     );
 
     // Subscribe to initial stats message
@@ -103,9 +102,9 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   const subscribe = <T = unknown>(
     event: string,
     handler: (data: T) => void,
-    immediate = true
+    // immediate = true // Remove this parameter since wsService.subscribe does not support it
   ) => {
-    return wsService.subscribe(event, handler, immediate);
+    return wsService.subscribe(event, handler);
   };
   
   const reconnect = () => {
