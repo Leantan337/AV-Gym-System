@@ -19,7 +19,7 @@ const ThrowErrorInRender = () => {
 describe('ErrorBoundary', () => {
   beforeEach(() => {
     // Suppress console.error for expected errors in tests
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(jest.fn());
   });
 
   afterEach(() => {
@@ -105,7 +105,7 @@ describe('ErrorBoundary', () => {
   it('alerts fallback message when clipboard.writeText fails', async () => {
     const mockClipboard = { writeText: jest.fn().mockRejectedValue(new Error('fail')) };
     Object.assign(navigator, { clipboard: mockClipboard });
-    const mockAlert = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const mockAlert = jest.spyOn(window, 'alert').mockImplementation(jest.fn());
 
     render(
       <ErrorBoundary>
@@ -212,10 +212,19 @@ describe('ErrorBoundary', () => {
 
   it('handles go home button click', async () => {
     const originalLocation = window.location;
-    // @ts-ignore
-    delete window.location;
-    // @ts-ignore
-    window.location = { assign: jest.fn() };
+    
+    // Properly mock window.location without @ts-ignore
+    const mockLocation = {
+      ...originalLocation,
+      assign: jest.fn()
+    };
+    
+    // Replace window.location with our mock
+    Object.defineProperty(window, 'location', {
+      value: mockLocation,
+      writable: true,
+      configurable: true
+    });
 
     render(
       <ErrorBoundary>
@@ -225,10 +234,14 @@ describe('ErrorBoundary', () => {
 
     fireEvent.click(screen.getByText(/Go Home/));
 
-    expect(window.location.assign).toHaveBeenCalledWith('/');
+    expect(mockLocation.assign).toHaveBeenCalledWith('/');
 
     // Restore the original location object
-    window.location = originalLocation as any;
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
+      configurable: true
+    });
   });
 
   it('handles report bug button click', async () => {
@@ -237,7 +250,7 @@ describe('ErrorBoundary', () => {
     };
     Object.assign(navigator, { clipboard: mockClipboard });
 
-    const mockAlert = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const mockAlert = jest.spyOn(window, 'alert').mockImplementation(jest.fn());
 
     render(
       <ErrorBoundary>
@@ -273,7 +286,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('logs error to console', () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(jest.fn());
 
     render(
       <ErrorBoundary>

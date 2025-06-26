@@ -36,7 +36,9 @@ class WebSocketTestHelper {
       memorySnapshots: []
     };
     
-    instance = this;
+    // Fix: Store singleton instance without aliasing 'this'
+    WebSocketTestHelper.instance = this;
+    instance = WebSocketTestHelper.instance;
   }
   
   resetStats() {
@@ -69,18 +71,17 @@ class WebSocketTestHelper {
     this.monitorTime = Date.now();
     
     // Replace the WebSocket constructor
-    const self = this;
-    window.WebSocket = function(url, protocols) {
-      const socket = new self.originalWebSocket(url, protocols);
-      self.interceptSocket(socket, url);
+    window.WebSocket = (url, protocols) => {
+      const socket = new this.originalWebSocket(url, protocols);
+      this.interceptSocket(socket, url);
       return socket;
     };
     
     // Copy static properties
-    window.WebSocket.CONNECTING = self.originalWebSocket.CONNECTING;
-    window.WebSocket.OPEN = self.originalWebSocket.OPEN;
-    window.WebSocket.CLOSING = self.originalWebSocket.CLOSING;
-    window.WebSocket.CLOSED = self.originalWebSocket.CLOSED;
+    window.WebSocket.CONNECTING = this.originalWebSocket.CONNECTING;
+    window.WebSocket.OPEN = this.originalWebSocket.OPEN;
+    window.WebSocket.CLOSING = this.originalWebSocket.CLOSING;
+    window.WebSocket.CLOSED = this.originalWebSocket.CLOSED;
     
     console.log('WebSocket monitoring started!');
     console.log('Available commands:');
@@ -110,9 +111,8 @@ class WebSocketTestHelper {
    * Intercept a WebSocket instance to monitor its traffic
    */
   interceptSocket(socket, url) {
-    const self = this;
-    self.stats.connectionAttempts++;
-    self.stats.lastActivity = Date.now();
+    this.stats.connectionAttempts++;
+    this.stats.lastActivity = Date.now();
     
     this.markEvent('connection_attempt');
     
@@ -121,80 +121,73 @@ class WebSocketTestHelper {
     
     // Intercept onopen
     const originalOnOpen = socket.onopen;
-    socket.onopen = function(event) {
-      self.stats.successfulConnections++;
-      self.stats.lastActivity = Date.now();
-      self.markEvent('connection_success');
+    // Fix: Remove unused parameter entirely
+    socket.onopen = () => {
+      this.stats.successfulConnections++;
+      this.stats.lastActivity = Date.now();
+      this.markEvent('connection_success');
       console.log(`%cWebSocket Connected: ${url}`, 'color: green');
       
-      if (self.stats.reconnections > 0) {
+      if (this.stats.reconnections > 0) {
         // Calculate reconnection time
-        const reconnectionTime = Date.now() - self.disconnectTime;
-        self.testResults.reconnectionTimes.push(reconnectionTime);
+        const reconnectionTime = Date.now() - this.disconnectTime;
+        this.testResults.reconnectionTimes.push(reconnectionTime);
         console.log(`Reconnection took ${reconnectionTime}ms`);
       }
       
-      if (originalOnOpen) originalOnOpen.apply(this, arguments);
+      if (originalOnOpen) originalOnOpen.apply(socket, arguments);
     };
     
     // Intercept onclose
-    const originalOnClose = socket.onclose;
-    socket.onclose = function(event) {
-      self.stats.disconnections++;
-      self.stats.lastActivity = Date.now();
-      self.disconnectTime = Date.now();
-      self.markEvent('disconnection');
-      console.log(`%cWebSocket Disconnected: ${url}`, 'color: red');
-      
-      if (originalOnClose) originalOnClose.apply(this, arguments);
-    };
+    
     
     // Intercept onerror
     const originalOnError = socket.onerror;
-    socket.onerror = function(event) {
-      self.stats.errors++;
-      self.stats.lastActivity = Date.now();
-      self.markEvent('error');
-      console.log(`%cWebSocket Error: ${url}`, 'color: red', event);
+    // Fix: Remove unused parameter entirely and use rest parameters for arguments
+    socket.onerror = (...args) => {
+      this.stats.errors++;
+      this.stats.lastActivity = Date.now();
+      this.markEvent('error');
+      console.log(`%cWebSocket Error: ${url}`, 'color: red', args[0]);
       
-      if (originalOnError) originalOnError.apply(this, arguments);
+      if (originalOnError) originalOnError.apply(socket, args);
     };
     
     // Intercept onmessage
     const originalOnMessage = socket.onmessage;
-    socket.onmessage = function(event) {
-      self.stats.messagesReceived++;
-      self.stats.bytesReceived += event.data.length;
-      self.stats.lastActivity = Date.now();
+    socket.onmessage = (event) => {
+      this.stats.messagesReceived++;
+      this.stats.bytesReceived += event.data.length;
+      this.stats.lastActivity = Date.now();
       
       try {
         const message = JSON.parse(event.data);
         const messageType = message.type || 'unknown';
         
         // Track message types
-        if (!self.stats.messageTypes[messageType]) {
-          self.stats.messageTypes[messageType] = 0;
+        if (!this.stats.messageTypes[messageType]) {
+          this.stats.messageTypes[messageType] = 0;
         }
-        self.stats.messageTypes[messageType]++;
+        this.stats.messageTypes[messageType]++;
         
         // Check if this is a response to a tracked message
-        if (self.sentMessages && self.sentMessages[messageType]) {
-          const sentTime = self.sentMessages[messageType];
+        if (this.sentMessages && this.sentMessages[messageType]) {
+          const sentTime = this.sentMessages[messageType];
           const deliveryTime = Date.now() - sentTime;
-          self.testResults.messageDeliveryTimes.push({
+          this.testResults.messageDeliveryTimes.push({
             type: messageType,
             deliveryTime
           });
-          delete self.sentMessages[messageType];
+          delete this.sentMessages[messageType];
           
           console.log(`Message delivery time for ${messageType}: ${deliveryTime}ms`);
         }
         
         // Special handling for check-in events to measure UI update time
         if (messageType === 'check_in_update') {
-          self.markEvent('check_in_received');
+          this.markEvent('check_in_received');
           // Start monitoring for DOM updates that would indicate UI refresh
-          self.monitorUiUpdates('dashboard-check-in-count', 'recent-check-ins');
+          this.monitorUiUpdates('dashboard-check-in-count', 'recent-check-ins');
         }
         
         console.log(`%c⬇️ Received ${messageType}:`, 'color: blue', message);
@@ -202,27 +195,27 @@ class WebSocketTestHelper {
         console.log(`%c⬇️ Received non-JSON message:`, 'color: blue', event.data);
       }
       
-      if (originalOnMessage) originalOnMessage.apply(this, arguments);
+      if (originalOnMessage) originalOnMessage.apply(socket, arguments);
     };
     
     // Intercept send
     const originalSend = socket.send;
-    socket.send = function(data) {
-      self.stats.messagesSent++;
-      self.stats.bytesSent += data.length;
-      self.stats.lastActivity = Date.now();
+    socket.send = (data) => {
+      this.stats.messagesSent++;
+      this.stats.bytesSent += data.length;
+      this.stats.lastActivity = Date.now();
       
       try {
         const message = JSON.parse(data);
         const messageType = message.type || 'unknown';
         
         // Track when this message was sent for delivery time calculation
-        if (!self.sentMessages) self.sentMessages = {};
-        self.sentMessages[messageType] = Date.now();
+        if (!this.sentMessages) this.sentMessages = {};
+        this.sentMessages[messageType] = Date.now();
         
         // Special handling for check-in events
         if (messageType === 'check_in') {
-          self.markEvent('check_in_sent');
+          this.markEvent('check_in_sent');
         }
         
         console.log(`%c⬆️ Sent ${messageType}:`, 'color: green', message);
@@ -230,7 +223,7 @@ class WebSocketTestHelper {
         console.log(`%c⬆️ Sent non-JSON message:`, 'color: green', data);
       }
       
-      return originalSend.apply(this, arguments);
+      return originalSend.apply(socket, arguments);
     };
   }
   
@@ -239,8 +232,6 @@ class WebSocketTestHelper {
    */
   monitorUiUpdates(...selectors) {
     const startTime = Date.now();
-    const self = this;
-    
     // Take a snapshot of current DOM elements
     const initialState = selectors.map(selector => {
       const element = document.querySelector(selector);
@@ -261,8 +252,8 @@ class WebSocketTestHelper {
       if (changed) {
         clearInterval(interval);
         const updateTime = Date.now() - startTime;
-        self.testResults.uiUpdateTimes.push(updateTime);
-        self.markEvent('ui_updated');
+        this.testResults.uiUpdateTimes.push(updateTime);
+        this.markEvent('ui_updated');
         console.log(`UI updated in ${updateTime}ms after receiving WebSocket message`);
       }
       

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // jest-dom adds custom jest matchers for asserting on DOM nodes.
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
@@ -6,18 +7,40 @@ import '@testing-library/jest-dom';
 
 // Mock IntersectionObserver
 (window as unknown as { [key: string]: unknown }).IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  unobserve() {}
+  constructor(..._args: unknown[]) {
+    // Mock constructor
+  }
+  
+  disconnect(): void {
+    // Mock disconnect - no operation needed in tests
+  }
+  
+  observe(..._args: unknown[]): void {
+    // Mock observe - no operation needed in tests
+  }
+  
+  unobserve(..._args: unknown[]): void {
+    // Mock unobserve - no operation needed in tests
+  }
 };
 
 // Mock ResizeObserver
 (window as unknown as { [key: string]: unknown }).ResizeObserver = class ResizeObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  unobserve() {}
+  constructor(..._args: unknown[]) {
+    // Mock constructor
+  }
+  
+  disconnect(): void {
+    // Mock disconnect - no operation needed in tests
+  }
+  
+  observe(..._args: unknown[]): void {
+    // Mock observe - no operation needed in tests
+  }
+  
+  unobserve(..._args: unknown[]): void {
+    // Mock unobserve - no operation needed in tests
+  }
 };
 
 // Mock matchMedia

@@ -14,6 +14,22 @@ export interface CheckIn {
   location?: string;
 }
 
+// Helper type guards for better type safety
+function hasProperty<T extends Record<string, unknown>>(
+  obj: T,
+  prop: string
+): obj is T & Record<string, unknown> {
+  return prop in obj;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
 export const useCheckIn = () => {
   const { sendMessage, subscribe, isConnected } = useWebSocket();
 
@@ -65,18 +81,43 @@ export const useCheckIn = () => {
 
 // Type guard function to validate CheckIn data
 function isCheckIn(data: unknown): data is CheckIn {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'id' in data &&
-    'member' in data &&
-    'check_in_time' in data &&
-    typeof (data as any).id === 'string' &&
-    typeof (data as any).member === 'object' &&
-    (data as any).member !== null &&
-    'id' in (data as any).member &&
-    'full_name' in (data as any).member &&
-    'membership_type' in (data as any).member &&
-    typeof (data as any).check_in_time === 'string'
-  );
+  if (!isObject(data)) {
+    return false;
+  }
+
+  // Check if data has required top-level properties
+  if (!hasProperty(data, 'id') || !hasProperty(data, 'member') || !hasProperty(data, 'check_in_time')) {
+    return false;
+  }
+
+  // Validate id property
+  if (!isString(data.id)) {
+    return false;
+  }
+
+  // Validate member property
+  if (!isObject(data.member)) {
+    return false;
+  }
+
+  const member = data.member;
+  if (!hasProperty(member, 'id') || !hasProperty(member, 'full_name') || !hasProperty(member, 'membership_type')) {
+    return false;
+  }
+
+  if (!isString(member.id) || !isString(member.full_name) || !isString(member.membership_type)) {
+    return false;
+  }
+
+  // Validate check_in_time property
+  if (!isString(data.check_in_time)) {
+    return false;
+  }
+
+  // Optional location property validation
+  if (hasProperty(data, 'location') && data.location !== undefined && !isString(data.location)) {
+    return false;
+  }
+
+  return true;
 }
