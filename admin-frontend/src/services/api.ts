@@ -5,7 +5,9 @@ import { applySecurityHeaders, checkRateLimit, sanitizeInput } from '../utils/se
 // Determine API URL based on environment
 const getApiBaseUrl = () => {
   // Use environment variable if set, otherwise default to Django's development server
-  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  // Ensure the base URL ends with /api/ to match Django URL structure
+  return baseUrl.endsWith('/api/') ? baseUrl : `${baseUrl}/api/`;
 }; 
 
 // Create axios instance with base configuration
@@ -94,7 +96,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
           const response = await axios.post(
-            `${getApiBaseUrl()}/auth/token/refresh/`, 
+            `${getApiBaseUrl()}auth/token/refresh/`, 
             { refresh: refreshToken },
             { withCredentials: true }
           );

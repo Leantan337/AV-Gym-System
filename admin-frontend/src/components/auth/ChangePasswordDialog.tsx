@@ -67,7 +67,7 @@ const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onClo
     setMessage(null);
 
     try {
-      const response = await api.post('/api/auth/me/change-password/', {
+      const response = await api.post('auth/me/change-password/', {
         current_password: currentPassword,
         new_password: newPassword,
         confirm_password: confirmPassword

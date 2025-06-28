@@ -35,7 +35,7 @@ const ForgotPasswordPage: React.FC = () => {
     setMessage(null);
     
     try {
-      const response = await api.post('/api/auth/password-reset/', { email });
+      const response = await api.post('auth/password-reset/', { email });
       setMessage({
         type: 'success',
         text: response.data.message || 'Password reset email sent successfully!'

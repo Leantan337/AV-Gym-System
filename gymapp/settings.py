@@ -52,7 +52,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'csp.middleware.CSPMiddleware',
+    # 'csp.middleware.CSPMiddleware',  # Temporarily disabled for development
 ]
 
 # CSRF Settings
@@ -254,7 +254,7 @@ CONTENT_SECURITY_POLICY = {
         'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"),
         'font-src': ("'self'", "https://fonts.gstatic.com"),
         'img-src': ("'self'", "data:", "https:"),
-        'connect-src': ("'self'", "ws:", "wss:"),
+        'connect-src': ("'self'", "ws:", "wss:", "http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:3000", "http://127.0.0.1:3000"),
     }
 }
 
@@ -266,12 +266,12 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # Set to True in production
 SECURE_HSTS_PRELOAD = False  # Set to True in production
 
 # Add Security Headers
-SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS = {
-    # Allow all connections during development
-    'Content-Security-Policy': "default-src 'self'; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://127.0.0.1:3000 ws://localhost:* ws://127.0.0.1:* *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *; font-src 'self' data: *; frame-src 'self'; object-src 'none';",
-    # Set report-only mode for development
-    'Content-Security-Policy-Report-Only': "default-src 'self';",
-}
+# SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS = {
+#     # Allow all connections during development
+#     'Content-Security-Policy': "default-src 'self'; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://127.0.0.1:3000 ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:* *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *; font-src 'self' data: *; frame-src 'self'; object-src 'none';",
+#     # Set report-only mode for development
+#     'Content-Security-Policy-Report-Only': "default-src 'self';",
+# }
 
 # CSP Configuration completely handled by SECURITY_MIDDLEWARE_ADDITIONAL_HEADERS above
 

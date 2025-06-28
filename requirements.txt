@@ -36,3 +36,6 @@ python-barcode==0.15.1
 # Data Processing and Export
 pandas>=2.0.0
 xlsxwriter>=3.0.0
+
+# Celery Beat
+django-celery-beat==2.6.0

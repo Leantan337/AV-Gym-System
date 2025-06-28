@@ -1,40 +1,49 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_DB: gymapp
       POSTGRES_USER: gymapp_user
       POSTGRES_PASSWORD: gymapp_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gymapp_user -d gymapp"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  # Redis for Celery and WebSocket
+  # Redis for Celery and Caching
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 10s
 
-  # Django Web Application
+  # Django Web Application (Backend in root)
   web:
-    build: .
-    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 gymapp.wsgi:application
+    build: 
+      context: .  # Backend is in root directory
+      dockerfile: Dockerfile
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 --max-requests 1000 --max-requests-jitter 50 gymapp.wsgi:application"
     volumes:
       - .:/app
       - media_files:/app/media
@@ -47,21 +56,27 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0,frontend
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   # Celery Worker
   celery:
-    build: .
-    command: celery -A gymapp worker --loglevel=info --concurrency=2
+    build: 
+      context: .  # Backend is in root directory
+      dockerfile: Dockerfile
+    command: celery -A gymapp worker --loglevel=info --concurrency=2 --max-tasks-per-child=1000
     volumes:
       - .:/app
       - media_files:/app/media
@@ -70,17 +85,28 @@ services:
       - DATABASE_URL=postgresql://gymapp_user:gymapp_password@db:5432/gymapp
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      web:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "gymapp", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Celery Beat (Scheduler)
   celery-beat:
-    build: .
-    command: celery -A gymapp beat --loglevel=info
+    build: 
+      context: .  # Backend is in root directory
+      dockerfile: Dockerfile
+    command: celery -A gymapp beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/app
       - media_files:/app/media
@@ -89,17 +115,22 @@ services:
       - DATABASE_URL=postgresql://gymapp_user:gymapp_password@db:5432/gymapp
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      web:
         condition: service_healthy
     restart: unless-stopped
 
   # Celery Flower (Monitoring)
   flower:
-    build: .
-    command: celery -A gymapp flower --port=5555
+    build: 
+      context: .  # Backend is in root directory
+      dockerfile: Dockerfile
+    command: celery -A gymapp flower --port=5555 --basic-auth=admin:admin
     ports:
       - "5555:5555"
     environment:
@@ -107,33 +138,55 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
+      - celery
     restart: unless-stopped
 
-  # Nginx (Reverse Proxy)
+  # React Frontend (in admin-frontend folder)
+  frontend:
+    build:
+      context: ./admin-frontend  # Frontend is in admin-frontend directory
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"  # Nginx serves on port 80 inside container
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000
+    depends_on:
+      - web
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Nginx (Reverse Proxy) - Optional for production
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - static_files:/app/staticfiles
-      - media_files:/app/media
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_files:/app/staticfiles:ro
+      - media_files:/app/media:ro
     depends_on:
       - web
+      - frontend
     restart: unless-stopped
-
-  # React Frontend
-  frontend:
-    build:
-      context: ./admin-frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:80"
-    restart: unless-stopped
+    profiles:
+      - production
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
   media_files:
-  static_files: 
+    driver: local
+  static_files:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

@@ -69,7 +69,7 @@ const ResetPasswordPage: React.FC = () => {
     setMessage(null);
     
     try {
-      const response = await api.post('/api/auth/password-reset/confirm/', {
+      const response = await api.post('auth/password-reset/confirm/', {
         uid,
         token,
         new_password: newPassword,
