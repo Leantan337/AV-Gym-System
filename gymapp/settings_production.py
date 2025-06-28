@@ -5,7 +5,7 @@ Production settings for gymapp
 import os
 from pathlib import Path
 from datetime import timedelta
-import dj_database_url
+import dj_database_url # type: ignore
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -78,13 +78,33 @@ TEMPLATES = [
 WSGI_APPLICATION = 'gymapp.wsgi.application'
 ASGI_APPLICATION = 'gymapp.routing.application'
 
-# Database
+# Database - Memory optimized for 2GB droplet
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'gymapp',
+        'USER': 'gymapp_user',
+        'PASSWORD': 'gymapp_password',
+        'HOST': 'db',
+        'PORT': '5432',
+        'OPTIONS': {
+            'MAX_CONNS': 5,  # Limit connections for memory efficiency
+        },
+        'CONN_MAX_AGE': 600,  # Connection pooling
+    }
+}
+
+# Cache optimization - Use Redis with connection limits
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',
+        'OPTIONS': {
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 5,
+            }
+        }
+    }
 }
 
 # Password validation
@@ -182,10 +202,10 @@ CELERY_TASK_ROUTES = {
     'reports.tasks.*': {'queue': 'reports'},
 }
 
-# Celery Worker Settings
+# Celery Worker Settings - Memory optimized
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_ACKS_LATE = True
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
 
 # CORS Configuration
 CORS_ALLOW_CREDENTIALS = True

@@ -14,9 +14,9 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gymapp_user -d gymapp"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 30s
+      timeout: 10s
+      retries: 3
       start_period: 30s
 
   # Redis for Celery and Caching
@@ -30,8 +30,8 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 3
       start_period: 10s
 
@@ -66,7 +66,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 60s
@@ -94,12 +94,6 @@ services:
       web:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "-A", "gymapp", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   # Celery Beat (Scheduler)
   celery-beat:
@@ -125,21 +119,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Celery Flower (Monitoring)
-  flower:
-    build: 
-      context: .  # Backend is in root directory
-      dockerfile: Dockerfile
-    command: celery -A gymapp flower --port=5555 --basic-auth=admin:admin
-    ports:
-      - "5555:5555"
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    depends_on:
-      - redis
-      - celery
-    restart: unless-stopped
+  # Celery Flower (Monitoring) - Commented out as it's mainly for development
+  # flower:
+  #   build: 
+  #     context: .  # Backend is in root directory
+  #     dockerfile: Dockerfile
+  #   command: celery -A gymapp flower --port=5555 --basic-auth=admin:admin
+  #   ports:
+  #     - "5555:5555"
+  #   environment:
+  #     - CELERY_BROKER_URL=redis://redis:6379/0
+  #     - CELERY_RESULT_BACKEND=redis://redis:6379/0
+  #   depends_on:
+  #     - redis
+  #     - celery
+  #   restart: unless-stopped
 
   # React Frontend (in admin-frontend folder)
   frontend:
@@ -156,7 +150,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 30s

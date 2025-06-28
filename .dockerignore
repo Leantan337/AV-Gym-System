@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
 *.db
 *.sqlite3
 *.log
@@ -12,19 +13,97 @@ __pycache__/
 *.pyd
 *.mypy_cache/
 *.pytest_cache/
+.coverage
+htmlcov/
+.pytest_cache/
 venv/
+env/
+.venv/
+
+# Environment files
 .env
 .env.*
+!.env.example
+
+# Git
 .git
 .gitignore
+.gitattributes
+
+# OS files
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.bak
+*.backup
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+.atom/
+
+# Node.js (for frontend)
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Media and static files (if large)
 media/
 staticfiles/
-*.md
-tests/
+static/
+
+# Documentation
 docs/
-*.bak
-*.swp
+*.md
+README*
+CHANGELOG*
+LICENSE*
+
+# Test files
+tests/
+test_*.py
+*_test.py
+*.test.py
+pytest.ini
+tox.ini
+.coveragerc
+
+# Docker files not needed in container
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Development tools
+mypy.ini
+bandit.yaml
+pyproject.toml
+
+# Logs
+logs/
+*.log
+log/
+
+# Database
+*.db
+*.sqlite3
+*.sql
+
+# Cache
+.cache/
+cache/
+
+# Temporary files
+tmp/
+temp/
 *.tmp
-*.test.py 
+*.temp 

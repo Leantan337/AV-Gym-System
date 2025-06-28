@@ -93,9 +93,30 @@ ASGI_APPLICATION = 'gymapp.routing.application'
 
 # Database
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'gymapp',
+        'USER': 'gymapp_user',
+        'PASSWORD': 'gymapp_password',
+        'HOST': 'db',
+        'PORT': '5432',
+        'OPTIONS': {
+            'MAX_CONNS': 5,  # Limit connections
+        },
+        'CONN_MAX_AGE': 600,  # Connection pooling
+    }
+}
+
+# Cache optimization
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',
+        'OPTIONS': {
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 5,
+            }
+        }
     }
 }
 
@@ -238,7 +259,7 @@ CELERY_TASK_ROUTES = {
 # Celery Worker Settings
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_ACKS_LATE = True
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
 
 # --- Security Headers ---
 SECURE_BROWSER_XSS_FILTER = True
