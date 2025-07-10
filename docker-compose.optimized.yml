@@ -19,9 +19,6 @@ services:
         limits:
           memory: 128M
           cpus: '0.5'
-        reservations:
-          memory: 64M
-          cpus: '0.25'
     command: [
       "postgres",
       "-c", "shared_buffers=32MB",
@@ -49,9 +46,6 @@ services:
         limits:
           memory: 48M
           cpus: '0.25'
-        reservations:
-          memory: 24M
-          cpus: '0.1'
 
   # Optimized Django Web Service
   web:
@@ -80,9 +74,6 @@ services:
         limits:
           memory: 128M
           cpus: '0.75'
-        reservations:
-          memory: 64M
-          cpus: '0.5'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
       interval: 60s
@@ -115,9 +106,6 @@ services:
         limits:
           memory: 96M
           cpus: '0.5'
-        reservations:
-          memory: 48M
-          cpus: '0.25'
 
   # Minimal Celery Beat (only if scheduled tasks are essential)
   celery-beat:
@@ -144,9 +132,6 @@ services:
         limits:
           memory: 64M
           cpus: '0.25'
-        reservations:
-          memory: 32M
-          cpus: '0.1'
 
   # Minimal Frontend (if separate container is needed)
   frontend:
@@ -166,9 +151,6 @@ services:
         limits:
           memory: 32M
           cpus: '0.25'
-        reservations:
-          memory: 16M
-          cpus: '0.1'
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
       interval: 60s
@@ -194,9 +176,6 @@ services:
         limits:
           memory: 24M
           cpus: '0.25'
-        reservations:
-          memory: 16M
-          cpus: '0.1'
     profiles:
       - production
 
