@@ -94,16 +94,8 @@ ASGI_APPLICATION = 'gymapp.routing.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'gymapp',
-        'USER': 'gymapp_user',
-        'PASSWORD': 'gymapp_password',
-        'HOST': 'db',
-        'PORT': '5432',
-        'OPTIONS': {
-            'MAX_CONNS': 5,  # Limit connections
-        },
-        'CONN_MAX_AGE': 600,  # Connection pooling
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
