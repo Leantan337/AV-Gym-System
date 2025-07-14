@@ -1,13 +1,19 @@
 # AV Gym Management System
 
-A comprehensive web-based gym membership and management system built with Django and React.
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Django](https://img.shields.io/badge/django-5.0.1-green.svg)](https://www.djangoproject.com/)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/Leantan337/AV-Gym-System-)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+
+> A comprehensive web-based gym membership and management system built with Django and React, featuring real-time check-ins, automated billing, and complete member lifecycle management.
 
 ## 🎯 Project Status: **95% Complete**
 
-### ✅ Completed Features
+### ✅ Core Features
 
-#### **Core Functionality (100%)**
-- ✅ **Member Management**: Full CRUD operations with photo upload
+#### **Member Management (100%)**
+- ✅ **Member Registration**: Full CRUD operations with photo upload
 - ✅ **Check-In/Check-Out System**: Real-time logging with barcode support
 - ✅ **Membership Plans**: Complete plan management with pricing
 - ✅ **Invoicing System**: Automated billing with PDF generation
@@ -30,26 +36,60 @@ A comprehensive web-based gym membership and management system built with Django
 - ✅ **Monitoring**: Health checks and logging
 - ✅ **Deployment**: Docker Compose with Nginx
 
-### 🚀 Quick Start
+## 🛠️ Technology Stack
 
-#### Prerequisites
+### Backend
+- **Framework**: Django 5.0.1 + Django REST Framework 3.14.0
+- **Authentication**: JWT (Simple JWT)
+- **Database**: PostgreSQL with connection pooling
+- **Cache/Queue**: Redis 5.0.1
+- **Background Tasks**: Celery 5.3.6 with Redis broker
+- **Web Server**: Gunicorn 21.2.0
+- **WebSockets**: Django Channels 4.1.0
+
+### Frontend
+- **Framework**: React 18 + Material-UI
+- **Build Tool**: Webpack
+- **State Management**: Context API
+- **HTTP Client**: Axios
+
+### Infrastructure
+- **Containerization**: Docker + Docker Compose
+- **Reverse Proxy**: Nginx
+- **Task Monitoring**: Celery Flower
+- **File Storage**: Local file system with media handling
+- **PDF Generation**: WeasyPrint + ReportLab
+- **Barcode Generation**: python-barcode + qrcode
+
+### Security
+- **Authentication**: JWT tokens
+- **CORS**: django-cors-headers
+- **CSP**: django-csp with security headers
+- **Database**: PostgreSQL with parameterized queries
+- **File Upload**: Pillow for image processing
+
+## 🚀 Installation
+
+### Prerequisites
 - Docker and Docker Compose
 - At least 2GB RAM
 - 10GB disk space
 
+### Quick Start
+
 #### 1. Clone and Setup
 ```bash
-git clone <repository-url>
+git clone https://github.com/Leantan337/AV-Gym-System-.git
 cd AV-Gym-System-
 
 # Copy environment template
-copy env.example .env
+cp env.example .env
 
-# Edit environment variables
-notepad .env
+# Edit environment variables (optional)
+nano .env
 ```
 
-#### 2. Deploy
+#### 2. Deploy with Docker
 ```bash
 # Windows
 deploy.bat
@@ -65,16 +105,181 @@ chmod +x deploy.sh
 - **Health Check**: http://localhost:8000/health/
 - **Celery Flower**: http://localhost:5555
 
-## 🏗️ Architecture
+### Manual Installation (Development)
 
-### Technology Stack
-- **Backend**: Django 5.0 + Django REST Framework
-- **Frontend**: React 18 + Material-UI
-- **Database**: PostgreSQL
-- **Cache/Queue**: Redis
-- **Background Tasks**: Celery
-- **Containerization**: Docker + Docker Compose
-- **Web Server**: Nginx + Gunicorn
+#### 1. Backend Setup
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup database
+python manage.py migrate
+
+# Create superuser
+python manage.py createsuperuser
+
+# Run development server
+python manage.py runserver
+```
+
+#### 2. Frontend Setup
+```bash
+cd admin-frontend
+npm install
+npm start
+```
+
+#### 3. Background Services
+```bash
+# Start Redis (in separate terminal)
+redis-server
+
+# Start Celery worker (in separate terminal)
+celery -A gymapp worker --loglevel=info
+
+# Start Celery beat (in separate terminal)
+celery -A gymapp beat --loglevel=info
+```
+
+## 📋 Features
+
+### 👥 Member Management
+- **Full CRUD Operations**: Add, edit, delete, and search members
+- **Photo Upload**: Member profile pictures with automatic resizing
+- **ID Card Generation**: Professional PDF cards with QR codes and barcodes
+- **Membership Plans**: Flexible plan assignment with expiration tracking
+- **Bulk Operations**: Mass actions on multiple members
+- **Advanced Search**: Filter by name, ID, status, or membership type
+
+### 🔄 Check-In System
+- **Barcode/QR Code Scanning**: Support for physical barcode scanners
+- **Manual Entry**: Type member ID or search by name
+- **Real-Time Updates**: Live check-in status via WebSocket
+- **Location Tracking**: Optional GPS location data for check-ins
+- **Check-In History**: Complete audit trail of all check-ins
+- **Attendance Analytics**: Daily, weekly, and monthly reports
+
+### 💳 Membership Plans
+- **Flexible Duration**: Daily, weekly, monthly, or custom periods
+- **Pricing Management**: Set different prices for different plans
+- **Auto-Assignment**: Automatically assign plans to new members
+- **Expiry Notifications**: Automated reminders for expiring memberships
+- **Plan Analytics**: Revenue and usage statistics per plan
+
+### 🧾 Invoicing & Billing
+- **Automated Billing**: Daily invoice generation via Celery tasks
+- **PDF Generation**: Professional invoice PDFs with company branding
+- **Payment Tracking**: Mark invoices as paid/unpaid with dates
+- **Bulk Processing**: Process multiple invoices simultaneously
+- **Email Integration**: Send payment reminders and receipts
+- **Revenue Reports**: Monthly and yearly revenue analytics
+
+### 📊 Dashboard & Analytics
+- **Real-Time Metrics**: Live member count and check-in statistics
+- **Revenue Tracking**: Daily, weekly, and monthly revenue graphs
+- **Member Growth**: New member registration trends
+- **Attendance Patterns**: Peak hours and usage analytics
+- **Expiry Alerts**: Upcoming membership expirations
+- **System Health**: Server status and performance metrics
+
+### 🔐 Security & Access Control
+- **JWT Authentication**: Secure token-based authentication
+- **Role-Based Access**: Admin, Manager, Staff, and Front Desk roles
+- **Permission System**: Granular permissions for different actions
+- **Audit Logging**: Complete activity logs for all system actions
+- **HTTPS Support**: SSL/TLS encryption for all communications
+- **CORS Configuration**: Secure cross-origin resource sharing
+
+## 🚀 Usage Examples
+
+### API Endpoints
+
+#### Authentication
+```bash
+# Login
+curl -X POST http://localhost:8000/api/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password"}'
+
+# Get user profile
+curl -X GET http://localhost:8000/api/auth/user/ \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Members
+```bash
+# List all members
+curl -X GET http://localhost:8000/api/members/ \
+  -H "Authorization: Bearer <token>"
+
+# Create new member
+curl -X POST http://localhost:8000/api/members/ \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1234567890",
+    "membership_plan": 1
+  }'
+
+# Generate member ID card
+curl -X POST http://localhost:8000/api/members/1/generate_card/ \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Check-ins
+```bash
+# Check in member
+curl -X POST http://localhost:8000/api/checkins/ \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"member_id": "12345", "action": "check_in"}'
+
+# Get check-in history
+curl -X GET http://localhost:8000/api/checkins/?member_id=12345 \
+  -H "Authorization: Bearer <token>"
+```
+
+### Frontend Usage
+
+#### Member Registration
+```javascript
+// Register new member
+const memberData = {
+  name: 'Jane Smith',
+  email: 'jane@example.com',
+  phone: '+1234567890',
+  membership_plan: 1
+};
+
+const response = await fetch('/api/members/', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(memberData)
+});
+```
+
+#### Real-time Check-ins
+```javascript
+// WebSocket connection for real-time updates
+const socket = new WebSocket('ws://localhost:8000/ws/checkins/');
+
+socket.onmessage = function(event) {
+  const data = JSON.parse(event.data);
+  console.log('Check-in update:', data);
+  // Update UI with real-time data
+};
+```
+
+## 🏗️ Architecture
 
 ### System Components
 ```
@@ -248,6 +453,26 @@ docker-compose exec -T db psql -U gymapp_user gymapp < backup.sql
 3. Make your changes
 4. Add tests
 5. Submit a pull request
+
+## 📧 Contact
+
+For questions, support, or contributions:
+
+- **Project Repository**: [AV-Gym-System-](https://github.com/Leantan337/AV-Gym-System-)
+- **Issues**: [GitHub Issues](https://github.com/Leantan337/AV-Gym-System-/issues)
+- **Documentation**: Check the [DEPLOYMENT.md](DEPLOYMENT.md) guide
+- **Health Check**: `curl http://localhost:8000/health/`
+
+### Support Channels
+1. **GitHub Issues**: Report bugs or request features
+2. **Troubleshooting**: Check the troubleshooting section above
+3. **Logs**: Monitor application logs with `docker-compose logs -f`
+4. **Health Monitoring**: Test health endpoint for system status
+
+### Development Team
+- **Lead Developer**: Leantan337
+- **Project Type**: Open Source Gym Management System
+- **Built With**: Django, React, PostgreSQL, Redis, Celery
 
 ## 📄 License
 
