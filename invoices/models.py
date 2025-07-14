@@ -2,7 +2,6 @@ from django.db import models
 import uuid
 from django.utils import timezone
 from members.models import Member
-from plans.models import MembershipPlan
 
 
 class InvoiceTemplate(models.Model):
