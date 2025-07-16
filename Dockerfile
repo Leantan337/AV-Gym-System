@@ -20,14 +20,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install Python dependencies with user install to avoid system-wide packages
+# Create non-root user early
+RUN adduser --disabled-password --gecos '' --shell /bin/sh appuser
+
+# Install Python dependencies as appuser
+USER appuser
+WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Runtime stage - minimal image
 FROM python:3.11-slim
 
-# Install only runtime dependencies (much smaller)
+# Install only runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libjpeg62-turbo \
@@ -43,38 +48,38 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && apt-get autoremove -y
 
-# Copy Python packages from builder stage
-COPY --from=builder /root/.local /root/.local
+# Create non-root user
+RUN adduser --disabled-password --gecos '' --shell /bin/sh appuser
 
-# Set environment variables for production
+# Copy Python packages from builder stage to appuser home
+COPY --from=builder --chown=appuser:appuser /home/appuser/.local /home/appuser/.local
+
+# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/root/.local/lib/python3.11/site-packages \
-    PATH=/root/.local/bin:$PATH \
+    PYTHONPATH=/home/appuser/.local/lib/python3.11/site-packages \
+    PATH=/home/appuser/.local/bin:$PATH \
     DJANGO_SETTINGS_MODULE=gymapp.settings
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN adduser --disabled-password --gecos '' --shell /bin/sh appuser
-
-# Copy only necessary application files (not entire codebase due to .dockerignore)
+# Copy application files
 COPY --chown=appuser:appuser . .
-
-# Create necessary directories and collect static files
-RUN mkdir -p /app/media /app/staticfiles \
-    && python manage.py collectstatic --noinput \
-    && chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
 
+# Create necessary directories and collect static files
+RUN mkdir -p /app/media /app/staticfiles \
+    && python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
-# Optimized Gunicorn configuration for small deployments
-# - 1 worker with 4 threads (good for 2GB droplet)
-# - Reduced timeout and keep-alive for memory efficiency
-# - Limited max requests to prevent memory leaks
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8000/health/ || exit 1
+
+# Optimized Gunicorn configuration
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "1", \
@@ -86,4 +91,4 @@ CMD ["gunicorn", \
      "--worker-class", "gthread", \
      "--worker-connections", "1000", \
      "--preload", \
-     "gymapp.wsgi:application"] 
+     "gymapp.wsgi:application"]

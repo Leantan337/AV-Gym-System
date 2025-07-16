@@ -23,6 +23,7 @@ from .serializers import (
     PasswordChangeSerializer,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework.views import APIView
 
 User = get_user_model()
 

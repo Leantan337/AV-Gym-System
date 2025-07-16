@@ -1,4 +1,4 @@
-# Django and REST framework
+# Core Django
 Django==5.0.1
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
@@ -8,62 +8,43 @@ djangorestframework-simplejwt==5.3.1
 psycopg2-binary>=2.9.6,<2.10.0
 dj-database-url==2.1.0
 
-# Asynchronous and WebSockets
+# WebSockets & Async
 channels==4.1.0
 daphne==4.1.0
 channels-redis==4.1.0
 
-# Task Queue and Caching
+# Celery & Task Queue
 celery==5.3.6
 redis==5.0.1
 flower==2.0.1
 
-# Production server
+# WSGI Server
 gunicorn==21.2.0
 
 # Security
 django-csp==4.0.0
 
-# Image Processing
+# Media & File Processing
 Pillow>=10.1.0
 qrcode>=7.0
 
-# PDF and Document Generation
+# PDF Generation
 WeasyPrint==60.1
 reportlab>=4.0.0
 python-barcode==0.15.1
 
-# Data Processing and Export
+# Data Processing
 pandas>=2.0.0
 xlsxwriter>=3.0.0
 
-# Celery Beat
-django-celery-beat==2.6.0
+# Celery Beat - Use newer version compatible with Django 5.0
+django-celery-beat==2.7.0
 
-# Environment Variables
+# Configuration
 python-decouple>=3.6
 
-# Static File Serving
+# Static Files
 whitenoise>=6.4.0
 
-# Error Tracking
-sentry-sdk>=1.15.0
-
-Django>=4.2,<5.0
-psycopg2-binary>=2.9.5
-redis>=4.5.0
-celery>=5.2.0
-django-celery-beat>=2.4.0
-python-decouple>=3.6
-dj-database-url>=1.2.0
-gunicorn>=20.1.0
-whitenoise>=6.4.0
-Pillow>=9.4.0
-django-cors-headers>=3.14.0
-djangorestframework>=3.14.0
-djangorestframework-simplejwt>=5.2.0
-channels>=4.0.0
-channels-redis>=4.1.0
-daphne>=4.0.0
-django-csp>=3.7
+# Monitoring
 sentry-sdk>=1.15.0

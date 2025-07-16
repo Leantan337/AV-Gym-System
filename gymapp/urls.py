@@ -109,18 +109,6 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/auth/', include('authentication.urls')),
-    path('api/accounts/', include('accounts.urls')),
-    path('api/members/', include('members.urls')),
-    path('api/checkins/', include('checkins.urls')),
-    path('api/plans/', include('plans.urls')),
-    path('api/invoices/', include('invoices.urls')),
-    path('api/notifications/', include('notifications.urls')),
-    path('api/reports/', include('reports.urls')),
-]
-
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
