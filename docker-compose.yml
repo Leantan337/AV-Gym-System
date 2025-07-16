@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # Lightweight PostgreSQL with aggressive memory tuning
+  # PostgreSQL with better memory allocation
   db:
     image: postgres:15-alpine
     environment:
@@ -17,37 +15,37 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: '0.5'
+          memory: 512M  # Increased from 128M
+          cpus: '0.75'  # Increased from 0.5
     command: [
       "postgres",
-      "-c", "shared_buffers=32MB",
-      "-c", "effective_cache_size=96MB", 
-      "-c", "maintenance_work_mem=16MB",
+      "-c", "shared_buffers=128MB",      # Increased from 32MB
+      "-c", "effective_cache_size=384MB", # Increased from 96MB
+      "-c", "maintenance_work_mem=64MB",  # Increased from 16MB
       "-c", "checkpoint_completion_target=0.9",
-      "-c", "wal_buffers=4MB",
+      "-c", "wal_buffers=16MB",          # Increased from 4MB
       "-c", "default_statistics_target=100",
       "-c", "random_page_cost=1.1",
       "-c", "effective_io_concurrency=200",
-      "-c", "work_mem=4MB",
+      "-c", "work_mem=8MB",              # Increased from 4MB
       "-c", "min_wal_size=80MB",
-      "-c", "max_wal_size=1GB"
+      "-c", "max_wal_size=2GB"           # Increased from 1GB
     ]
 
-  # Ultra-lightweight Redis with memory limits
+  # Redis with more memory
   redis:
     image: redis:7-alpine
-    command: redis-server --maxmemory 32mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save "" --appendonly no
     ports:
       - "6379:6379"
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 48M
-          cpus: '0.25'
+          memory: 192M  # Increased from 48M
+          cpus: '0.5'   # Increased from 0.25
 
-  # Optimized Django Web Service
+  # Django Web Service with more resources
   web:
     build: 
       context: .
@@ -57,9 +55,15 @@ services:
       - DATABASE_URL=postgresql://gymapp_user:gymapp_password@db:5432/gymapp
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
-      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
       - DJANGO_SETTINGS_MODULE=gymapp.settings
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - SENTRY_DSN=${SENTRY_DSN}
     volumes:
       - media_files:/app/media
       - static_files:/app/staticfiles
@@ -72,28 +76,34 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: '0.75'
+          memory: 512M  # Increased from 128M
+          cpus: '1.0'   # Increased from 0.75
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
-      interval: 60s
+      interval: 30s    # More frequent checks
       timeout: 10s
       retries: 3
       start_period: 60s
 
-  # Lightweight Celery Worker with minimal concurrency
+  # Celery Worker with better concurrency
   celery:
     build: 
       context: .
       dockerfile: Dockerfile
-    command: celery -A gymapp worker --loglevel=warning --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=100 --without-gossip --without-mingle
+    command: celery -A gymapp worker --loglevel=info --concurrency=2 --prefetch-multiplier=2 --max-tasks-per-child=200 --without-gossip --without-mingle
     environment:
       - DEBUG=False
       - DATABASE_URL=postgresql://gymapp_user:gymapp_password@db:5432/gymapp
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY}
       - DJANGO_SETTINGS_MODULE=gymapp.settings
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - SENTRY_DSN=${SENTRY_DSN}
     volumes:
       - media_files:/app/media
     depends_on:
@@ -104,21 +114,21 @@ services:
     deploy:
       resources:
         limits:
-          memory: 96M
-          cpus: '0.5'
+          memory: 256M  # Increased from 96M
+          cpus: '0.75'  # Increased from 0.5
 
-  # Minimal Celery Beat (only if scheduled tasks are essential)
+  # Celery Beat with more resources
   celery-beat:
     build: 
       context: .
       dockerfile: Dockerfile
-    command: celery -A gymapp beat --loglevel=warning --scheduler django_celery_beat.schedulers:DatabaseScheduler --max-interval=300
+    command: celery -A gymapp beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler --max-interval=300
     environment:
       - DEBUG=False
       - DATABASE_URL=postgresql://gymapp_user:gymapp_password@db:5432/gymapp
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY}
       - DJANGO_SETTINGS_MODULE=gymapp.settings
     volumes:
       - media_files:/app/media
@@ -130,10 +140,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
-          cpus: '0.25'
+          memory: 128M  # Increased from 64M
+          cpus: '0.5'   # Increased from 0.25
 
-  # Minimal Frontend (if separate container is needed)
+  # Frontend with more resources
   frontend:
     build:
       context: ./admin-frontend
@@ -141,32 +151,35 @@ services:
     ports:
       - "3000:80"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      - REACT_APP_WS_URL=ws://localhost:8000
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      - REACT_APP_WS_URL=${REACT_APP_WS_URL:-ws://localhost:8000}
+      - NODE_ENV=production
     depends_on:
       - web
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 32M
-          cpus: '0.25'
+          memory: 128M  # Increased from 32M
+          cpus: '0.5'   # Increased from 0.25
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
-      interval: 60s
+      interval: 30s    # More frequent checks
       timeout: 10s
       retries: 3
       start_period: 30s
 
-  # Optional Nginx for production (only if needed)
+  # Nginx with better resources
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
+      - "443:443"  # Added HTTPS support
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - static_files:/app/staticfiles:ro
       - media_files:/app/media:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # For SSL certificates
     depends_on:
       - web
       - frontend
@@ -174,8 +187,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 24M
-          cpus: '0.25'
+          memory: 64M   # Increased from 24M
+          cpus: '0.5'   # Increased from 0.25
     profiles:
       - production
 
@@ -189,4 +202,4 @@ volumes:
 
 networks:
   default:
-    driver: bridge 
+    driver: bridge
