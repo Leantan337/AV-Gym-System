@@ -29,7 +29,8 @@ import {
   Visibility as VisibilityIcon,
   Email as EmailIcon,
   Download as DownloadIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { invoiceApi } from '../../services/invoiceApi';
 import {
@@ -37,9 +38,10 @@ import {
   CreateInvoiceData,
   InvoiceListResponse,
 } from '../../types/invoice';
+import { InvoiceManagementPage } from './InvoiceManagementPage';
 
 // Define local types
-type TabValue = 'invoices' | 'templates';
+type TabValue = 'invoices' | 'templates' | 'management';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -413,6 +415,12 @@ export const InvoicePage: React.FC = () => {
         <Tabs value={tabValue} onChange={handleTabChange} aria-label="invoice tabs">
           <Tab label="Invoices" value="invoices" {...a11yProps('invoices')} />
           <Tab label="Templates" value="templates" {...a11yProps('templates')} />
+          <Tab 
+            label="Management" 
+            value="management" 
+            {...a11yProps('management')} 
+            icon={<SettingsIcon />}
+          />
         </Tabs>
       </Paper>
 
@@ -469,6 +477,10 @@ export const InvoicePage: React.FC = () => {
       <TabPanel value={tabValue} index="templates">
         <Typography variant="h6">Invoice Templates</Typography>
         <Typography variant="body1">Template management will be implemented here.</Typography>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index="management">
+        <InvoiceManagementPage />
       </TabPanel>
 
       {/* Create/Edit Invoice Dialog */}
