@@ -66,8 +66,8 @@ WORKDIR /app
 # Copy application files
 COPY --chown=appuser:appuser . .
 
-# Switch to non-root user
-USER appuser
+# Ensure appuser owns /app
+RUN chown -R appuser:appuser /app
 
 # Create necessary directories and collect static files
 RUN mkdir -p /app/media /app/staticfiles \

@@ -35,7 +35,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'csp',
     'rest_framework_simplejwt',
-    'accounts.apps.AccountsConfig',
     'members',
     'checkins',
     'plans',
@@ -85,13 +84,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'gymapp.wsgi.application'
 ASGI_APPLICATION = 'gymapp.routing.application'
 
-# Database - Updated to use environment variables
+# Database - Use SQLite for local development
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='postgresql://gymapp_user:gymapp_password@db:5432/gymapp'),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
 # Cache optimization - Updated to use environment variables
