@@ -122,7 +122,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    command: celery -A gymapp beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler --max-interval=300
+    command: celery -A gymapp beat --loglevel=info --max-interval=300
     environment:
       - DEBUG=False
       - DATABASE_URL=postgresql://gymapp_user:gymapp_password@db:5432/gymapp
@@ -132,6 +132,7 @@ services:
       - DJANGO_SETTINGS_MODULE=gymapp.settings
     volumes:
       - media_files:/app/media
+      - celerybeat_schedule:/app
     depends_on:
       - db
       - redis
@@ -198,6 +199,8 @@ volumes:
   media_files:
     driver: local
   static_files:
+    driver: local
+  celerybeat_schedule:
     driver: local
 
 networks:
