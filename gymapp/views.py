@@ -121,7 +121,7 @@ def health_check(request):
 
         # Check Redis connection
         try:
-            redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = os.environ.get('REDIS_URL') or os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
             r = redis.from_url(redis_url)
             r.ping()
             health_status['services']['redis'] = 'healthy'
