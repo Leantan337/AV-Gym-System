@@ -34,6 +34,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'csp',
+    'django_celery_beat',  
+    'django_celery_results',  
     'rest_framework_simplejwt',
     'members',
     'checkins',
