@@ -41,7 +41,7 @@ RUN chown -R nginx-user:nginx-user /usr/share/nginx/html \
     && chown -R nginx-user:nginx-user /etc/nginx/conf.d
 
 # Switch to non-root user
-USER nginx-user
+# USER nginx-user
 
 EXPOSE 80
 

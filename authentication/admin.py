@@ -15,12 +15,22 @@ class ChangeRoleForm(forms.Form):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'email', 'role', 'is_active', 'is_staff', 'is_superuser')
-    list_filter = ('role', 'is_active', 'is_staff', 'is_superuser')
-    fieldsets = BaseUserAdmin.fieldsets + (('Role info', {'fields': ('role',)}),)
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (('Role info', {'fields': ('role',)}),)
+    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'is_active', 'is_staff', 'date_joined')
+    list_filter = ('role', 'is_active', 'is_staff', 'is_superuser', 'date_joined')
+    search_fields = ('username', 'email', 'first_name', 'last_name')
+    ordering = ('username',)
+    
+    fieldsets = BaseUserAdmin.fieldsets + (
+        ('Role Info', {'fields': ('role',)}),
+        ('Additional Info', {'fields': ('phone', 'address', 'date_of_birth', 'emergency_contact', 'emergency_phone')}),
+    )
+    
+    add_fieldsets = BaseUserAdmin.add_fieldsets + (
+        ('Role Info', {'fields': ('role',)}),
+        ('Additional Info', {'fields': ('phone', 'address', 'date_of_birth', 'emergency_contact', 'emergency_phone')}),
+    )
 
-    actions = ['change_role_action']
+    actions = ['change_role_action', 'activate_users', 'deactivate_users']
 
     def get_urls(self):
         urls = super().get_urls()
@@ -54,6 +64,18 @@ class UserAdmin(BaseUserAdmin):
         )
 
     change_role_action.short_description = 'Change role for selected users'
+
+    def activate_users(self, request, queryset):
+        count = queryset.update(is_active=True)
+        self.message_user(request, f"Activated {count} users.")
+
+    activate_users.short_description = 'Activate selected users'
+
+    def deactivate_users(self, request, queryset):
+        count = queryset.update(is_active=False)
+        self.message_user(request, f"Deactivated {count} users.")
+
+    deactivate_users.short_description = 'Deactivate selected users'
 
     def change_role(self, request):
         user_ids = request.POST.getlist('_selected_action')
