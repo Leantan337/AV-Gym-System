@@ -39,6 +39,7 @@ xlsxwriter>=3.0.0
 
 # Celery Beat - Use newer version compatible with Django 5.0
 django-celery-beat==2.7.0
+django-celery-results==2.5.1
 
 # Configuration
 python-decouple>=3.6
