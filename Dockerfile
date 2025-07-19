@@ -79,16 +79,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:8000/health/ || exit 1
 
-# Optimized Gunicorn configuration
-CMD ["gunicorn", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "1", \
-     "--threads", "4", \
-     "--timeout", "60", \
-     "--keep-alive", "2", \
-     "--max-requests", "1000", \
-     "--max-requests-jitter", "50", \
-     "--worker-class", "gthread", \
-     "--worker-connections", "1000", \
-     "--preload", \
-     "gymapp.wsgi:application"]
+# ASGI server for WebSocket support - using Daphne
+CMD ["daphne", \
+     "-b", "0.0.0.0", \
+     "-p", "8000", \
+     "--access-log", "-", \
+     "--proxy-headers", \
+     "gymapp.asgi:application"]

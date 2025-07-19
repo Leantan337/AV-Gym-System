@@ -4,10 +4,22 @@ FROM node:18-alpine as builder
 # Set working directory
 WORKDIR /app
 
+
+# Accept build arguments for React environment variables
+ARG REACT_APP_API_BASE_URL
+ARG REACT_APP_API_HOST
+
+# Set environment variables from build args
+ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
+ENV REACT_APP_API_HOST=$REACT_APP_API_HOST
+
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies with production flag and clean cache
+# Set NODE_ENV=development to install devDependencies (react-scripts)
+ENV NODE_ENV=development
+
+# Install all dependencies (including devDependencies)
 RUN npm ci --silent \
     && npm cache clean --force
 
@@ -17,6 +29,8 @@ COPY . .
 # Build the React app with production optimizations
 RUN npm run build \
     && rm -rf node_modules
+
+# Set NODE_ENV=production for runtime (in final image stage)
 
 # Stage 2: Minimal runtime with nginx
 FROM nginx:alpine

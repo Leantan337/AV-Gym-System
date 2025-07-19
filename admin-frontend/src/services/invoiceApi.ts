@@ -1,8 +1,14 @@
 import axios from 'axios';
 
+// Determine API URL based on environment
+const getApiBaseUrl = () => {
+  const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  return baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+};
+
 // Create axios instance with base URL and auth headers
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },

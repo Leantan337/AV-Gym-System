@@ -56,7 +56,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,46.101.193.107}
       - DJANGO_SETTINGS_MODULE=gymapp.settings
       - EMAIL_HOST=${EMAIL_HOST}
       - EMAIL_PORT=${EMAIL_PORT:-587}
@@ -149,11 +149,13 @@ services:
     build:
       context: ./admin-frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://46.101.193.107:8000}
+        REACT_APP_API_HOST: ${REACT_APP_API_HOST:-46.101.193.107:8000}
+        NODE_ENV: production
     ports:
       - "3000:80"
     environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
-      - REACT_APP_WS_URL=${REACT_APP_WS_URL:-ws://localhost:8000}
       - NODE_ENV=production
     depends_on:
       - web
