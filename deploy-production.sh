@@ -20,7 +20,7 @@ docker-compose down
 
 # Start containers with production config
 echo "▶️  Starting containers..."
-docker-compose --env-file .env.production up -d
+docker-compose --env-file .env.unified up -d
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to start..."
