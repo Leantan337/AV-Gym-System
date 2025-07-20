@@ -155,7 +155,11 @@ STATICFILES_FINDERS = [
 ]
 
 # Use WhiteNoise for static files in production
+# This enables Django to serve static files directly without nginx
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
+# Force Django to serve static files even with DEBUG=False
+FORCE_SERVE_STATIC = config('FORCE_SERVE_STATIC', default=True, cast=bool)
 
 # Media files
 MEDIA_URL = '/media/'
