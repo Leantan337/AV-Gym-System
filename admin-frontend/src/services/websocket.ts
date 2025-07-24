@@ -611,10 +611,16 @@ class MessageBatcher {
 
 // Determine WebSocket URL based on environment
 const getWebSocketUrl = () => {
-  // Use secure WebSocket in production, regular in development
-  const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
-  const host = process.env.REACT_APP_API_HOST || 'localhost:8000';
-  return `${protocol}://${host}/ws/checkins/`;
+  // For now, use regular WebSocket (ws) even in production until SSL is configured
+  // TODO: Change to 'wss' when SSL certificates are installed
+  
+  // Hardcode production URL for now to fix immediate connection issues
+  if (window.location.hostname === '46.101.193.107' || window.location.hostname.includes('46.101.193.107')) {
+    return 'ws://46.101.193.107:8000/ws/checkins/';
+  }
+  
+  // Development fallback
+  return 'ws://localhost:8000/ws/checkins/';
 };
 
 // Create a singleton instance

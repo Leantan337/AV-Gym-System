@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Connection Tester</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007acc;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .button {
+            background-color: #007acc;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .button:hover {
+            background-color: #005a99;
+        }
+        .button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+            font-weight: bold;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .badge-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .badge-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Connection Tester</h1>
+        <p><strong>Purpose:</strong> Test WebSocket connections to verify our protocol fixes are working correctly.</p>
+        
+        <div class="test-section">
+            <h3>📡 Connection Tests</h3>
+            <button class="button" onclick="testWebSocket('ws')">Test WS:// (Non-Secure)</button>
+            <button class="button" onclick="testWebSocket('wss')">Test WSS:// (Secure)</button>
+            <button class="button" onclick="testBothProtocols()">Test Both Protocols</button>
+            <button class="button" onclick="clearLog()">Clear Log</button>
+            
+            <div style="margin-top: 15px;">
+                <strong>Expected Results:</strong>
+                <ul>
+                    <li>🎯 <span class="success">WS:// should WORK</span> (our fix)</li>
+                    <li>🚫 <span class="error">WSS:// should FAIL</span> (CSP blocking)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Results</h3>
+            <div id="results">
+                <div>WS:// Status: <span id="ws-status" class="status-badge badge-pending">Not Tested</span></div>
+                <div>WSS:// Status: <span id="wss-status" class="status-badge badge-pending">Not Tested</span></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Connection Log</h3>
+            <div id="log" class="log">Ready to test WebSocket connections...\n</div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Manual Testing</h3>
+            <p>You can also test manually in the browser console:</p>
+            <div class="log">
+// Test WS (should work)
+const ws1 = new WebSocket('ws://46.101.193.107:8000/ws/checkins/');
+ws1.onopen = () => console.log('✅ WS connection successful!');
+ws1.onerror = (e) => console.log('❌ WS connection failed:', e);
+
+// Test WSS (should fail due to CSP)
+const ws2 = new WebSocket('wss://46.101.193.107:8000/ws/checkins/');
+ws2.onopen = () => console.log('✅ WSS connection successful!');
+ws2.onerror = (e) => console.log('❌ WSS connection failed:', e);
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                'success': '#28a745',
+                'error': '#dc3545', 
+                'warning': '#ffc107',
+                'info': '#17a2b8'
+            };
+            
+            logDiv.innerHTML += `<span style="color: ${colors[type]}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(protocol, status) {
+            const element = document.getElementById(`${protocol}-status`);
+            element.textContent = status;
+            element.className = 'status-badge ' + (
+                status.includes('SUCCESS') ? 'badge-success' :
+                status.includes('FAILED') ? 'badge-error' : 'badge-pending'
+            );
+        }
+
+        function testWebSocket(protocol) {
+            const url = `${protocol}://46.101.193.107:8000/ws/checkins/`;
+            log(`🔄 Testing ${protocol.toUpperCase()} connection to: ${url}`);
+            updateStatus(protocol, 'Testing...');
+
+            try {
+                const ws = new WebSocket(url);
+                
+                const timeout = setTimeout(() => {
+                    ws.close();
+                    log(`⏰ ${protocol.toUpperCase()} connection timeout (10s)`, 'warning');
+                    updateStatus(protocol, 'TIMEOUT');
+                }, 10000);
+
+                ws.onopen = function() {
+                    clearTimeout(timeout);
+                    log(`✅ ${protocol.toUpperCase()} connection successful!`, 'success');
+                    updateStatus(protocol, 'SUCCESS');
+                    
+                    // Send test message
+                    const testMsg = {
+                        type: 'ping',
+                        timestamp: new Date().toISOString()
+                    };
+                    ws.send(JSON.stringify(testMsg));
+                    log(`📤 Sent test message: ${JSON.stringify(testMsg)}`, 'info');
+                    
+                    // Close after success
+                    setTimeout(() => {
+                        ws.close();
+                        log(`🔒 ${protocol.toUpperCase()} connection closed`, 'info');
+                    }, 2000);
+                };
+
+                ws.onerror = function(error) {
+                    clearTimeout(timeout);
+                    log(`❌ ${protocol.toUpperCase()} connection failed: ${error.type}`, 'error');
+                    updateStatus(protocol, 'FAILED');
+                    
+                    if (protocol === 'wss') {
+                        log(`💡 WSS failure is EXPECTED due to CSP restrictions`, 'warning');
+                    }
+                };
+
+                ws.onmessage = function(event) {
+                    log(`📥 ${protocol.toUpperCase()} received: ${event.data}`, 'success');
+                };
+
+                ws.onclose = function(event) {
+                    log(`🔒 ${protocol.toUpperCase()} connection closed (code: ${event.code})`, 'info');
+                };
+
+            } catch (error) {
+                log(`💥 ${protocol.toUpperCase()} exception: ${error.message}`, 'error');
+                updateStatus(protocol, 'ERROR');
+            }
+        }
+
+        function testBothProtocols() {
+            log('🚀 Starting comprehensive WebSocket tests...', 'info');
+            testWebSocket('ws');
+            setTimeout(() => testWebSocket('wss'), 1000);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = 'Log cleared...\n';
+        }
+
+        // Auto-run tests when page loads
+        window.onload = function() {
+            log('🌐 WebSocket Tester loaded', 'info');
+            log('👆 Click "Test Both Protocols" to start testing', 'info');
+        };
+    </script>
+</body>
+</html>
