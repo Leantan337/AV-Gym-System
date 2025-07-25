@@ -35,6 +35,10 @@ export interface WebSocketMessage<T = unknown> {
     | 'member_checked_in'
     | 'member_checked_out'
     | 'check_in_stats'
+    | 'stats_update'
+    | 'activity_notification'
+    | 'initial_stats'
+    | 'heartbeat_ack'
     | 'error'
     | string;
   payload: T;
@@ -45,16 +49,34 @@ export interface CheckInWebSocketEvent {
   checkIn: CheckInEvent;
 }
 
+export interface ActivityNotification {
+  type: 'member_activity';
+  activity: 'check_in' | 'check_out';
+  member: {
+    id: string;
+    full_name: string;
+  };
+  timestamp: string;
+  location?: string;
+  duration_minutes?: number;
+}
+
+export interface CheckInStats {
+  currentlyIn: number;
+  todayTotal: number;
+  averageStayMinutes: number;
+}
+
 export class WebSocketService {
   private socket: WebSocket | null = null;
   private messageHandlers: Map<string, Set<MessageHandler>> = new Map();
   private reconnectAttempts = 0;
   private connectionStatus: ConnectionStatus = 'disconnected';
-  private reconnectTimeout: NodeJS.Timeout | null = null;
-  private pingInterval: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
   private readonly PING_INTERVAL = 30000; // 30 seconds
   private readonly HEARTBEAT_INTERVAL = 10000; // 10 seconds
-  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastHeartbeatAck = 0;
   private readonly HEARTBEAT_TIMEOUT = 15000; // 15 seconds
   private readonly MAX_MISSED_HEARTBEATS = 2;
@@ -70,6 +92,29 @@ export class WebSocketService {
   private connectionStartTime = 0;
   private readonly CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
 
+  // Phase 5: Performance optimization features
+  private memoryMonitor: ReturnType<typeof setInterval> | null = null;
+  private readonly MEMORY_CHECK_INTERVAL = 60000; // 1 minute
+  private readonly MAX_HANDLER_CLEANUP_AGE = 300000; // 5 minutes
+  private handlerAccessTime: Map<string, number> = new Map();
+  private messageMetrics = {
+    totalReceived: 0,
+    totalSent: 0,
+    errorsCount: 0,
+    lastResetTime: Date.now(),
+    avgLatency: 0,
+    latencyMeasurements: [] as number[]
+  };
+  private connectionQuality = {
+    score: 100, // 0-100 scale
+    factors: {
+      latency: 100,
+      dropRate: 100,
+      stability: 100
+    }
+  };
+  private performanceOptimizationEnabled = true;
+
   constructor(private baseUrl: string) {
     // Validate baseUrl
     try {
@@ -78,8 +123,8 @@ export class WebSocketService {
       console.error('Invalid WebSocket base URL:', baseUrl);
       throw new Error('Invalid WebSocket base URL');
     }
-    // Initial connection attempt
-    this.connect(false, false);
+    // Don't connect immediately - wait for auth token to be set
+    console.log('WebSocketService initialized, waiting for authentication token');
   }
 
   private getWebSocketUrl(): string {
@@ -101,19 +146,30 @@ export class WebSocketService {
   }
 
   setAuthToken(token: string | null) {
+    const previousToken = this.authToken;
     this.authToken = token;
-    if (token) {
-      // If we have a token and we're not connected, try to connect
+    
+    if (token && token !== previousToken) {
+      // New or different token - establish connection
+      console.log('Auth token set, establishing WebSocket connection');
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
         this.connect(false, false);
       }
-    } else {
-      // If token is removed, disconnect
+    } else if (!token && previousToken) {
+      // Token removed - disconnect
+      console.log('Auth token cleared, disconnecting WebSocket');
       this.disconnect();
     }
+    // If token is same as before, no action needed
   }
 
   connect(manualReconnect = false, reconnectAttempt = false) {
+    // Prevent multiple concurrent connection attempts
+    if (this.connectionStatus === 'connecting') {
+      console.debug('Connection attempt already in progress, skipping');
+      return;
+    }
+
     if (this.socket) {
       if (this.socket.readyState === WebSocket.OPEN) {
         console.debug('WebSocket already connected, skipping connect');
@@ -151,17 +207,16 @@ export class WebSocketService {
         
         // Send authentication message immediately after connection
         if (this.authToken && this.socket) {
-          console.debug('Sending authentication message...');
-          this.socket.send(JSON.stringify({
-            type: 'authenticate',
-            payload: { token: this.authToken }
-          }));
+          console.debug('WebSocket authenticated via URL token - no message needed');
+          // Authentication is handled by URL token via JWTAuthMiddleware
+          // No need to send separate authentication message
         }
         
         this.connectionStatus = 'connected';
         this.notifyConnectionStatusChange();
         this.setupPing();
         this.setupHeartbeat();
+        this.startPerformanceMonitoring(); // Start performance monitoring
         
         // Set the socket for the message batcher
         if (this.socket) {
@@ -179,29 +234,32 @@ export class WebSocketService {
 
       this.socket.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data) as WebSocketMessage;
+          const messageStartTime = Date.now();
+          this.messageMetrics.totalReceived++;
+          
+          const message: WebSocketMessage = JSON.parse(event.data);
           const { type, payload } = message;
+          
+          // Track handler access for memory cleanup
+          this.handlerAccessTime.set(type, Date.now());
 
-          // Handle authentication response
-          if (type === 'authentication_success') {
-            console.log('WebSocket authentication successful');
-            return;
-          }
-
-          if (type === 'authentication_error') {
-            let errorMessage = 'Unknown authentication error';
-            if (payload && typeof payload === 'object' && 'message' in payload) {
-              errorMessage = String((payload as { message?: unknown }).message);
-            }
-            console.error('WebSocket authentication failed:', errorMessage);
-            this.handleConnectionError(new Error('Authentication failed: ' + errorMessage));
-            return;
-          }
+          console.debug('Received WebSocket message:', { type, payload });
+          
+          // URL-based authentication via middleware - no auth messages needed
+          // Authentication success/error handled by connection acceptance/rejection
 
           // Handle heartbeat_ack
           if (type === 'heartbeat_ack') {
             const now = Date.now();
             const timeSinceLastAck = now - this.lastHeartbeatAck;
+            
+            // Track latency
+            const latency = now - messageStartTime;
+            this.messageMetrics.latencyMeasurements.push(latency);
+            this.messageMetrics.avgLatency = 
+              this.messageMetrics.latencyMeasurements.reduce((a, b) => a + b, 0) / 
+              this.messageMetrics.latencyMeasurements.length;
+            
             console.debug(`Received heartbeat ack after ${Math.round(timeSinceLastAck/1000)}s`);
             this.lastHeartbeatAck = now;
             this.missedHeartbeats = 0;
@@ -219,7 +277,14 @@ export class WebSocketService {
               const handlers = this.messageHandlers.get(msgType);
               if (handlers) {
                 (data as unknown[]).forEach(item => {
-                  handlers.forEach(handler => handler(item));
+                  handlers.forEach(handler => {
+                    try {
+                      handler(item);
+                    } catch (error) {
+                      console.error(`Error in handler for ${msgType}:`, error);
+                      this.messageMetrics.errorsCount++;
+                    }
+                  });
                 });
               }
             });
@@ -228,14 +293,20 @@ export class WebSocketService {
 
           const handlers = this.messageHandlers.get(type);
           if (handlers && payload !== undefined && payload !== null) {
-            handlers.forEach(handler => handler(payload));
+            handlers.forEach(handler => {
+              try {
+                handler(payload);
+              } catch (error) {
+                console.error(`Error in handler for ${type}:`, error);
+                this.messageMetrics.errorsCount++;
+              }
+            });
           }
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
+          this.messageMetrics.errorsCount++;
         }
-      };
-
-      this.socket.onclose = () => {
+      };      this.socket.onclose = () => {
         clearTimeout(connectionTimeout);
         const error = new Error('WebSocket disconnected');
         console.log(error.message);
@@ -492,6 +563,7 @@ export class WebSocketService {
       this.socket = null;
     }
     this.clearIntervals();
+    this.stopPerformanceMonitoring();
     
     // Preserve authentication_failed status, otherwise set to disconnected
     if (this.connectionStatus !== 'authentication_failed') {
@@ -530,47 +602,219 @@ export class WebSocketService {
   public async checkOutMember(data: CheckOutData): Promise<void> {
     return this.send('check_out', data);
   }
+
+  // Phase 5: Performance optimization methods
+  private startPerformanceMonitoring() {
+    if (!this.performanceOptimizationEnabled) return;
+
+    this.memoryMonitor = setInterval(() => {
+      this.performMemoryCleanup();
+      this.updateConnectionQuality();
+      this.logPerformanceMetrics();
+    }, this.MEMORY_CHECK_INTERVAL);
+  }
+
+  private stopPerformanceMonitoring() {
+    if (this.memoryMonitor) {
+      clearInterval(this.memoryMonitor);
+      this.memoryMonitor = null;
+    }
+  }
+
+  private performMemoryCleanup() {
+    const now = Date.now();
+    
+    // Clean up old handler access times
+    Array.from(this.handlerAccessTime.entries()).forEach(([handlerType, lastAccess]) => {
+      if (now - lastAccess > this.MAX_HANDLER_CLEANUP_AGE) {
+        this.handlerAccessTime.delete(handlerType);
+      }
+    });
+
+    // Limit latency measurements to last 100 entries
+    if (this.messageMetrics.latencyMeasurements.length > 100) {
+      this.messageMetrics.latencyMeasurements = this.messageMetrics.latencyMeasurements.slice(-50);
+    }
+
+    // Reset metrics if too old
+    if (now - this.messageMetrics.lastResetTime > 3600000) { // 1 hour
+      this.resetMetrics();
+    }
+  }
+
+  private updateConnectionQuality() {
+    const dropRate = this.messageMetrics.errorsCount / Math.max(1, this.messageMetrics.totalSent);
+    const avgLatency = this.messageMetrics.avgLatency;
+    
+    // Calculate quality factors (0-100 scale)
+    this.connectionQuality.factors.dropRate = Math.max(0, 100 - (dropRate * 1000));
+    this.connectionQuality.factors.latency = Math.max(0, 100 - Math.min(100, avgLatency / 10));
+    this.connectionQuality.factors.stability = this.reconnectAttempts === 0 ? 100 : Math.max(0, 100 - (this.reconnectAttempts * 20));
+    
+    // Overall score is weighted average
+    this.connectionQuality.score = Math.round(
+      (this.connectionQuality.factors.dropRate * 0.4) +
+      (this.connectionQuality.factors.latency * 0.3) +
+      (this.connectionQuality.factors.stability * 0.3)
+    );
+  }
+
+  private logPerformanceMetrics() {
+    if (this.messageMetrics.totalReceived % 1000 === 0 && this.messageMetrics.totalReceived > 0) {
+      console.debug('WebSocket Performance Metrics:', {
+        totalMessages: this.messageMetrics.totalReceived,
+        totalSent: this.messageMetrics.totalSent,
+        errors: this.messageMetrics.errorsCount,
+        avgLatency: this.messageMetrics.avgLatency.toFixed(2) + 'ms',
+        connectionQuality: this.connectionQuality.score + '%',
+        batchingStats: this.messageBatcher.getStatistics()
+      });
+    }
+  }
+
+  private resetMetrics() {
+    this.messageMetrics = {
+      totalReceived: 0,
+      totalSent: 0,
+      errorsCount: 0,
+      lastResetTime: Date.now(),
+      avgLatency: 0,
+      latencyMeasurements: []
+    };
+  }
+
+  // Public methods for performance monitoring
+  getPerformanceMetrics() {
+    return {
+      messages: { ...this.messageMetrics },
+      connectionQuality: { ...this.connectionQuality },
+      batcher: this.messageBatcher.getStatistics(),
+      handlers: {
+        totalTypes: this.messageHandlers.size,
+        activeHandlers: Array.from(this.messageHandlers.values()).reduce((sum, handlers) => sum + handlers.size, 0)
+      }
+    };
+  }
+
+  enablePerformanceOptimization(enabled: boolean) {
+    this.performanceOptimizationEnabled = enabled;
+    if (enabled && this.connectionStatus === 'connected') {
+      this.startPerformanceMonitoring();
+    } else {
+      this.stopPerformanceMonitoring();
+    }
+  }
+}
 }
 
 // Message batching for high-volume scenarios
 interface BatchedMessage<T = unknown> {
   type: string;
-  data: T;
+  data: T | undefined;
   timestamp: number;
+  priority: 'high' | 'medium' | 'low';
 }
 
 class MessageBatcher {
   private messages: BatchedMessage[] = [];
-  private batchTimeout: NodeJS.Timeout | null = null;
+  private batchTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly BATCH_INTERVAL = 100; // ms
+  private readonly MAX_BATCH_SIZE = 50; // Maximum messages per batch
+  private readonly MAX_QUEUE_SIZE = 200; // Maximum queued messages
   private socket: WebSocket | null = null;
+  private lastSendTime = 0;
+  private readonly MIN_SEND_INTERVAL = 50; // Minimum 50ms between sends
+  private compressionEnabled = true;
+  private adaptiveBatching = true;
+  private statistics = {
+    totalBatches: 0,
+    totalMessages: 0,
+    bytesReduced: 0,
+    avgBatchSize: 0,
+    droppedMessages: 0
+  };
 
   setSocket(socket: WebSocket) {
     this.socket = socket;
   }
 
-  add<T = unknown>(type: string, data?: T) {
-    this.messages.push({
+  add<T = unknown>(type: string, data?: T, priority: 'high' | 'medium' | 'low' = 'medium') {
+    // Memory protection: Drop oldest low-priority messages if queue is full
+    if (this.messages.length >= this.MAX_QUEUE_SIZE) {
+      const droppedCount = this.dropLowPriorityMessages();
+      console.warn(`Message queue full, dropped ${droppedCount} low-priority messages`);
+      this.statistics.droppedMessages += droppedCount;
+    }
+
+    const message: BatchedMessage<T> = {
       type,
       data,
-      timestamp: Date.now()
-    });
+      timestamp: Date.now(),
+      priority
+    };
 
-    if (!this.batchTimeout) {
+    // Insert based on priority (high priority first)
+    if (priority === 'high') {
+      this.messages.unshift(message);
+    } else {
+      this.messages.push(message);
+    }
+
+    // Adaptive batching: Send immediately if high priority or batch is full
+    if (priority === 'high' || this.messages.length >= this.MAX_BATCH_SIZE) {
+      this.sendBatch();
+    } else if (!this.batchTimeout) {
       this.scheduleBatch();
     }
   }
 
+  private dropLowPriorityMessages(): number {
+    const originalLength = this.messages.length;
+    // Keep high and medium priority messages
+    this.messages = this.messages.filter(msg => msg.priority !== 'low');
+    
+    // If still too many, drop oldest medium priority messages
+    if (this.messages.length > this.MAX_QUEUE_SIZE * 0.8) {
+      const mediumPriorityMessages = this.messages.filter(msg => msg.priority === 'medium');
+      const highPriorityMessages = this.messages.filter(msg => msg.priority === 'high');
+      
+      // Keep only recent medium priority messages
+      const keepMediumCount = Math.floor(this.MAX_QUEUE_SIZE * 0.6);
+      const recentMedium = mediumPriorityMessages
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, keepMediumCount);
+      
+      this.messages = [...highPriorityMessages, ...recentMedium];
+    }
+    
+    return originalLength - this.messages.length;
+  }
+
   private scheduleBatch() {
+    // Adaptive interval based on message volume
+    let interval = this.BATCH_INTERVAL;
+    if (this.adaptiveBatching) {
+      // Reduce interval if many messages are queued
+      if (this.messages.length > 20) {
+        interval = Math.max(25, this.BATCH_INTERVAL / 2);
+      } else if (this.messages.length < 5) {
+        interval = this.BATCH_INTERVAL * 1.5;
+      }
+    }
+
+    const timeSinceLastSend = Date.now() - this.lastSendTime;
+    const delay = Math.max(interval, this.MIN_SEND_INTERVAL - timeSinceLastSend);
+    
     this.batchTimeout = setTimeout(() => {
       this.sendBatch();
-    }, this.BATCH_INTERVAL);
+    }, delay);
   }
 
   private sendBatch() {
     if (this.socket?.readyState === WebSocket.OPEN && this.messages.length > 0) {
-      const batch = this.messages.slice();
-      this.messages = [];
+      const batchSize = Math.min(this.messages.length, this.MAX_BATCH_SIZE);
+      const batch = this.messages.splice(0, batchSize);
+      this.lastSendTime = Date.now();
 
       // Group messages by type to reduce payload size
       const groupedBatch = batch.reduce((acc, msg) => {
@@ -581,13 +825,36 @@ class MessageBatcher {
         return acc;
       }, {} as Record<string, unknown[]>);
 
+      // Calculate compression statistics
+      const originalPayload = JSON.stringify(batch);
+      const compressedPayload = JSON.stringify({
+        type: 'batch',
+        batches: groupedBatch,
+        metadata: {
+          count: batch.length,
+          timestamp: Date.now(),
+          compression: this.compressionEnabled ? 'grouped' : 'none'
+        }
+      });
+
+      // Update statistics
+      this.statistics.totalBatches++;
+      this.statistics.totalMessages += batch.length;
+      this.statistics.bytesReduced += Math.max(0, originalPayload.length - compressedPayload.length);
+      this.statistics.avgBatchSize = this.statistics.totalMessages / this.statistics.totalBatches;
+
       try {
-        this.socket.send(JSON.stringify({
-          type: 'batch',
-          batches: groupedBatch
-        }));
+        this.socket.send(compressedPayload);
+
+        // Log performance metrics periodically
+        if (this.statistics.totalBatches % 100 === 0) {
+          this.logPerformanceMetrics();
+        }
       } catch (error) {
         console.error('Error sending batched messages:', error);
+        // Re-queue messages on error with lower priority
+        const requeuedMessages = batch.map(msg => ({ ...msg, priority: 'low' as const }));
+        this.messages.unshift(...requeuedMessages);
       }
     }
 
@@ -599,6 +866,55 @@ class MessageBatcher {
     }
   }
 
+  private logPerformanceMetrics() {
+    const compressionRatio = this.statistics.bytesReduced > 0 
+      ? ((this.statistics.bytesReduced / (this.statistics.totalMessages * 100)) * 100)
+      : 0;
+
+    console.debug('WebSocket batching performance:', {
+      totalBatches: this.statistics.totalBatches,
+      totalMessages: this.statistics.totalMessages,
+      avgBatchSize: this.statistics.avgBatchSize.toFixed(2),
+      bytesReduced: this.statistics.bytesReduced,
+      compressionRatio: compressionRatio.toFixed(1) + '%',
+      droppedMessages: this.statistics.droppedMessages,
+      queueSize: this.messages.length
+    });
+  }
+
+  // Force immediate send of all queued messages
+  flush() {
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+    
+    while (this.messages.length > 0) {
+      this.sendBatch();
+    }
+  }
+
+  // Get batching statistics
+  getStatistics() {
+    return { 
+      ...this.statistics,
+      queueSize: this.messages.length,
+      highPriorityCount: this.messages.filter(m => m.priority === 'high').length,
+      mediumPriorityCount: this.messages.filter(m => m.priority === 'medium').length,
+      lowPriorityCount: this.messages.filter(m => m.priority === 'low').length
+    };
+  }
+
+  // Enable/disable adaptive batching
+  setAdaptiveBatching(enabled: boolean) {
+    this.adaptiveBatching = enabled;
+  }
+
+  // Enable/disable compression
+  setCompression(enabled: boolean) {
+    this.compressionEnabled = enabled;
+  }
+
   clear() {
     if (this.batchTimeout) {
       clearTimeout(this.batchTimeout);
@@ -606,21 +922,35 @@ class MessageBatcher {
     }
     this.messages = [];
     this.socket = null;
+    // Reset statistics
+    this.statistics = {
+      totalBatches: 0,
+      totalMessages: 0,
+      bytesReduced: 0,
+      avgBatchSize: 0,
+      droppedMessages: 0
+    };
   }
 }
 
 // Determine WebSocket URL based on environment
 const getWebSocketUrl = () => {
-  // For now, use regular WebSocket (ws) even in production until SSL is configured
-  // TODO: Change to 'wss' when SSL certificates are installed
+  // Check if running in Docker environment
+  const hostname = window.location.hostname;
   
-  // Hardcode production URL for now to fix immediate connection issues
-  if (window.location.hostname === '46.101.193.107' || window.location.hostname.includes('46.101.193.107')) {
+  // Docker local setup - use backend service name or host networking
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // Local Docker setup - backend runs on host port 8000
+    return 'ws://localhost:8000/ws/checkins/';
+  }
+  
+  // Production environment with specific IP
+  if (hostname === '46.101.193.107' || hostname.includes('46.101.193.107')) {
     return 'ws://46.101.193.107:8000/ws/checkins/';
   }
   
-  // Development fallback
-  return 'ws://localhost:8000/ws/checkins/';
+  // Default to current host with backend port for Docker environments
+  return `ws://${hostname}:8000/ws/checkins/`;
 };
 
 // Create a singleton instance

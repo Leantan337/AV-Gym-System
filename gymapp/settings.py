@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    # 'csp',  # Temporarily disabled until frontend URLs are fixed
+    'csp',  # Re-enabled for Phase 1 WebSocket fixes
     'django_celery_beat',  
     'django_celery_results',  
     'rest_framework_simplejwt',
@@ -277,13 +277,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-# Content Security Policy (CSP) settings for enhanced security
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
-CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
-CSP_IMG_SRC = ("'self'", "data:", "blob:")
-CSP_CONNECT_SRC = ("'self'", "http://46.101.193.107:8000", "ws://46.101.193.107:8000", "ws://localhost:8000", "wss://46.101.193.107:8000", "wss://localhost:8000")
+# Content Security Policy (CSP) settings - See override section at end of file
 
 # --- Email Configuration ---
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend')
@@ -367,3 +361,31 @@ LOGGING = {
         },
     },
 }
+
+# Force CSP override for WebSocket connections (Phase 1 Fix)
+CSP_CONNECT_SRC = [
+    "'self'",
+    "http://46.101.193.107:8000",
+    "ws://46.101.193.107:8000", 
+    "ws://localhost:8000",
+    "wss://46.101.193.107:8000",
+    "wss://localhost:8000",
+    "'unsafe-inline'",  # Allow inline connections if needed
+]
+
+# Force CSP script source for WebSocket initialization
+CSP_SCRIPT_SRC = [
+    "'self'",
+    "'unsafe-inline'",  # Required for React inline scripts
+    "'unsafe-eval'",   # Required for dynamic script evaluation
+]
+
+# Force CSP default directives to lists for proper middleware compatibility
+CSP_DEFAULT_SRC = ["'self'"]
+CSP_STYLE_SRC = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
+CSP_FONT_SRC = ["'self'", "https://fonts.gstatic.com"]
+CSP_IMG_SRC = ["'self'", "data:", "blob:"]
+
+# Ensure CSP middleware is properly applied
+CSP_REPORT_ONLY = False
+CSP_INCLUDE_NONCE_IN = ['script-src']

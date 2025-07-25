@@ -39,8 +39,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     const token = localStorage.getItem('token');
     if (token) {
       setAuthToken(token);
+      // setAuthToken in WebSocket service will handle connection automatically
       wsService.setAuthToken(token);
-      wsService.connect(false, false);
     }
     setIsInitialized(true);
 
@@ -87,11 +87,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     const currentToken = wsService.getAuthToken();
     if (currentToken !== authToken) {
       console.log('Auth token changed, updating WebSocket connection');
+      // setAuthToken in WebSocket service will handle reconnection automatically
       wsService.setAuthToken(authToken);
-      // Only reconnect if we have a new token
-      if (authToken) {
-        wsService.connect(false, false);
-      }
     }
   }, [authToken, isInitialized]);
 
@@ -108,7 +105,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
   
   const reconnect = () => {
-    wsService.connect(true, false);
+    // Use WebSocket service's built-in manual reconnect method
+    wsService.manualReconnect();
   };
   
   const updateAuthToken = (token: string | null) => {

@@ -48,9 +48,33 @@ class CheckInConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         print("WebSocket: connect called")
-        # Accept the connection first to allow authentication message
+        # Check if user was authenticated by JWTAuthMiddleware
+        user = self.scope.get('user')
+        if isinstance(user, AnonymousUser) or not user:
+            print("WebSocket: No authenticated user, closing connection")
+            await self.close(code=4001)  # Unauthorized
+            return
+        
+        # Accept the connection - user is authenticated
         await self.accept()
-        print("WebSocket: connection accepted")
+        print(f"WebSocket: User {user.username} connected and authenticated via URL token")
+        
+        # Add to group immediately since user is authenticated
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        print(f"WebSocket: User {user.username} added to group {self.room_group_name}")
+        
+        # Send initial stats after connection
+        try:
+            print("WebSocket: Fetching initial stats...")
+            stats = await self.get_check_in_stats()
+            print("WebSocket: Initial stats fetched.")
+            await self.send(
+                json.dumps({'type': 'initial_stats', 'payload': stats})
+            )
+            print("WebSocket: Initial stats sent.")
+        except Exception as e:
+            print(f"WebSocket: Error fetching or sending initial stats: {e}")
+            # Don't close connection for stats errors, just log them
 
     async def disconnect(self, close_code):
         print(f"WebSocket: disconnect called, code={close_code}")
@@ -79,70 +103,10 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                 return
 
             if event_type == 'authenticate':
-                # Handle authentication message
-                token = data.get('payload', {}).get('token')
-                if token:
-                    try:
-                        access_token = AccessToken(token)
-                        user_id = access_token['user_id']
-                        user = await self.get_user(user_id)
-                        if not isinstance(user, AnonymousUser):
-                            self.scope['user'] = user
-                            print(f"WebSocket: User authenticated via message: {user.username}")
-                            # Add to group after successful authentication
-                            await self.channel_layer.group_add(
-                                self.room_group_name, self.channel_name
-                            )
-                            try:
-                                await self.send(
-                                    json.dumps(
-                                        {
-                                            'type': 'authentication_success',
-                                            'message': 'Successfully authenticated',
-                                        }
-                                    )
-                                )
-                            except Exception as e:
-                                print(f"WebSocket: Error sending auth success: {e}")
-                                return
-
-                            # Send initial stats after authentication
-                            print("WebSocket: Fetching initial stats...")
-                            try:
-                                stats = await self.get_check_in_stats()
-                                print("WebSocket: Initial stats fetched.")
-                                await self.send(
-                                    json.dumps({'type': 'initial_stats', 'payload': stats})
-                                )
-                                print("WebSocket: Initial stats sent.")
-                            except Exception as e:
-                                print(f"WebSocket: Error fetching or sending initial stats: {e}")
-                                # Don't close connection for stats errors, just log them
-
-                            return
-                    except Exception as e:
-                        print(f"Authentication error (message): {e}")
-                        try:
-                            await self.send(
-                                json.dumps(
-                                    {'type': 'authentication_error', 'message': 'Invalid token'}
-                                )
-                            )
-                        except Exception as send_error:
-                            print(f"WebSocket: Error sending auth error: {send_error}")
-                        await self.close()
-                        return
-                else:
-                    try:
-                        await self.send(
-                            json.dumps(
-                                {'type': 'authentication_error', 'message': 'No token provided'}
-                            )
-                        )
-                    except Exception as send_error:
-                        print(f"WebSocket: Error sending auth error: {send_error}")
-                    await self.close()
-                    return
+                # Authentication handled by URL token via JWTAuthMiddleware
+                # No need for message-based authentication
+                print("WebSocket: Received authenticate message - not needed (using URL auth)")
+                return
 
             # For non-authentication messages, check if user is authenticated
             if isinstance(self.scope["user"], AnonymousUser):
@@ -244,6 +208,7 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                 print(f"WebSocket: Error sending check-in success: {e}")
                 return
 
+            # Broadcast check-in event to all connected clients
             try:
                 await self.channel_layer.group_send(
                     self.room_group_name,
@@ -251,6 +216,32 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                 )
             except Exception as e:
                 print(f"WebSocket: Error broadcasting check-in: {e}")
+                
+            # Send updated stats to all clients
+            try:
+                updated_stats = await self.get_check_in_stats()
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {'type': 'stats_update', 'payload': updated_stats},
+                )
+            except Exception as e:
+                print(f"WebSocket: Error broadcasting stats update: {e}")
+                
+            # Send member activity notification
+            try:
+                activity_data = {
+                    'type': 'member_activity',
+                    'activity': 'check_in',
+                    'member': result['check_in']['member'],
+                    'timestamp': result['check_in']['check_in_time'],
+                    'location': result['check_in'].get('location', 'Main Area')
+                }
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {'type': 'activity_notification', 'payload': activity_data},
+                )
+            except Exception as e:
+                print(f"WebSocket: Error broadcasting activity notification: {e}")
         else:
             try:
                 await self.send(
@@ -274,6 +265,7 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                 print(f"WebSocket: Error sending check-out success: {e}")
                 return
 
+            # Broadcast check-out event to all connected clients
             try:
                 await self.channel_layer.group_send(
                     self.room_group_name,
@@ -281,6 +273,41 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                 )
             except Exception as e:
                 print(f"WebSocket: Error broadcasting check-out: {e}")
+                
+            # Send updated stats to all clients
+            try:
+                updated_stats = await self.get_check_in_stats()
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {'type': 'stats_update', 'payload': updated_stats},
+                )
+            except Exception as e:
+                print(f"WebSocket: Error broadcasting stats update: {e}")
+                
+            # Send member activity notification
+            try:
+                duration_minutes = 0
+                if result['check_out'].get('check_in_time') and result['check_out'].get('check_out_time'):
+                    from django.utils.dateparse import parse_datetime
+                    check_in_time = parse_datetime(result['check_out']['check_in_time'])
+                    check_out_time = parse_datetime(result['check_out']['check_out_time'])
+                    if check_in_time and check_out_time:
+                        duration_minutes = int((check_out_time - check_in_time).total_seconds() / 60)
+                
+                activity_data = {
+                    'type': 'member_activity',
+                    'activity': 'check_out',
+                    'member': result['check_out']['member'],
+                    'timestamp': result['check_out']['check_out_time'],
+                    'location': result['check_out'].get('location', 'Main Area'),
+                    'duration_minutes': duration_minutes
+                }
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {'type': 'activity_notification', 'payload': activity_data},
+                )
+            except Exception as e:
+                print(f"WebSocket: Error broadcasting activity notification: {e}")
         else:
             try:
                 await self.send(
@@ -331,3 +358,21 @@ class CheckInConsumer(AsyncWebsocketConsumer):
             )
         except Exception as e:
             print(f"WebSocket: Error sending member_checked_out broadcast: {e}")
+
+    async def stats_update(self, event):
+        """Handle stats update broadcast"""
+        try:
+            await self.send(
+                text_data=json.dumps({'type': 'stats_update', 'payload': event['payload']})
+            )
+        except Exception as e:
+            print(f"WebSocket: Error sending stats_update broadcast: {e}")
+
+    async def activity_notification(self, event):
+        """Handle activity notification broadcast"""
+        try:
+            await self.send(
+                text_data=json.dumps({'type': 'activity_notification', 'payload': event['payload']})
+            )
+        except Exception as e:
+            print(f"WebSocket: Error sending activity_notification broadcast: {e}")
