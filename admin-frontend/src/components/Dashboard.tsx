@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Paper, Typography, Box, Snackbar, Alert, Chip, 
-  Fade, Badge, List, ListItem, ListItemText, ListItemIcon,
-  Avatar, Card, CardContent, Divider
+  Fade, Badge, Tabs, Tab
 } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
@@ -11,13 +10,12 @@ import {
 } from 'recharts';
 import ExpiringMemberships from './notifications/ExpiringMemberships';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { CheckInEvent, ActivityNotification, CheckInStats } from '../services/websocket';
+import { CheckInEvent } from '../services/websocket';
 import { ConnectionStatusIndicator } from './common/ConnectionStatusIndicator';
+import PerformanceDashboard from './PerformanceDashboard';
 import PeopleIcon from '@mui/icons-material/People';
-import LoginIcon from '@mui/icons-material/Login';
-import LogoutIcon from '@mui/icons-material/Logout';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import SpeedIcon from '@mui/icons-material/Speed';
 
 interface DashboardStats {
   members: {
@@ -42,9 +40,8 @@ interface DashboardStats {
 export const Dashboard: React.FC = () => {
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
+  const [activeTab, setActiveTab] = useState(0);
   const [recentCheckIns, setRecentCheckIns] = useState<CheckInEvent[]>([]);
-  const [activityFeed, setActivityFeed] = useState<ActivityNotification[]>([]);
-  const [liveStats, setLiveStats] = useState<CheckInStats | null>(null);
   const [notification, setNotification] = useState<{
     open: boolean;
     message: string;
@@ -64,8 +61,7 @@ export const Dashboard: React.FC = () => {
 
   // Subscribe to real-time check-in updates
   useEffect(() => {
-    // Subscribe to check-in/check-out events
-    const unsubscribeCheckIn = subscribe<CheckInEvent>('member_checked_in', (checkInEvent) => {
+    const unsubscribe = subscribe<CheckInEvent>('check_in_update', (checkInEvent) => {
       // Update recent check-ins list
       setRecentCheckIns(prev => {
         const updatedList = [checkInEvent, ...prev.slice(0, 4)];
@@ -73,61 +69,18 @@ export const Dashboard: React.FC = () => {
       });
       
       // Show notification
+      const action = checkInEvent.status === 'checked_in' ? 'checked in' : 'checked out';
       setNotification({
         open: true,
-        message: `${checkInEvent.member.full_name} checked in`,
-        type: 'success'
-      });
-      
-      // Invalidate dashboard stats to get updated counts
-      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-    });
-
-    const unsubscribeCheckOut = subscribe<CheckInEvent>('member_checked_out', (checkOutEvent) => {
-      // Show notification
-      setNotification({
-        open: true,
-        message: `${checkOutEvent.member.full_name} checked out`,
+        message: `${checkInEvent.member.full_name} has ${action}`,
         type: 'info'
       });
       
       // Invalidate dashboard stats to get updated counts
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     });
-
-    // Subscribe to live statistics updates
-    const unsubscribeStats = subscribe<CheckInStats>('stats_update', (statsUpdate) => {
-      setLiveStats(statsUpdate);
-      // Also update the cached query data
-      queryClient.setQueryData(['dashboardStats'], (oldData: any) => ({
-        ...oldData,
-        checkins: {
-          today: statsUpdate.todayTotal,
-          current: statsUpdate.currentlyIn
-        }
-      }));
-    });
-
-    // Subscribe to initial stats
-    const unsubscribeInitialStats = subscribe<CheckInStats>('initial_stats', (initialStats) => {
-      setLiveStats(initialStats);
-    });
-
-    // Subscribe to activity notifications
-    const unsubscribeActivity = subscribe<ActivityNotification>('activity_notification', (activity) => {
-      setActivityFeed(prev => {
-        const updatedFeed = [activity, ...prev.slice(0, 9)]; // Keep last 10 activities
-        return updatedFeed;
-      });
-    });
     
-    return () => {
-      unsubscribeCheckIn();
-      unsubscribeCheckOut();
-      unsubscribeStats();
-      unsubscribeInitialStats();
-      unsubscribeActivity();
-    };
+    return () => unsubscribe();
   }, [subscribe, queryClient]);
   
   const handleCloseNotification = () => {
@@ -142,116 +95,10 @@ export const Dashboard: React.FC = () => {
     return <Typography>Error loading dashboard stats</Typography>;
   }
 
-  const formatDuration = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes}m`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
-  };
-
-  const formatActivityTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const ActivityFeedCard: React.FC = () => (
-    <Card sx={{ height: '400px', display: 'flex', flexDirection: 'column' }}>
-      <CardContent sx={{ pb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Badge badgeContent={activityFeed.length} color="primary" sx={{ mr: 2 }}>
-            <PeopleIcon />
-          </Badge>
-          <Typography variant="h6" component="h3">
-            Live Activity Feed
-          </Typography>
-        </Box>
-      </CardContent>
-      
-      <Box sx={{ flex: 1, overflow: 'auto', px: 2, pb: 2 }}>
-        {activityFeed.length === 0 ? (
-          <Typography 
-            variant="body2" 
-            color="text.secondary" 
-            sx={{ textAlign: 'center', mt: 4 }}
-          >
-            No recent activity
-          </Typography>
-        ) : (
-          <List dense>
-            {activityFeed.map((activity, index) => (
-              <React.Fragment key={`${activity.timestamp}-${index}`}>
-                <ListItem sx={{ px: 0, py: 1 }}>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <Avatar 
-                      sx={{ 
-                        width: 32, 
-                        height: 32, 
-                        bgcolor: activity.activity === 'check_in' ? 'success.main' : 'info.main',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      {activity.activity === 'check_in' ? (
-                        <LoginIcon fontSize="small" />
-                      ) : (
-                        <LogoutIcon fontSize="small" />
-                      )}
-                    </Avatar>
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight="medium">
-                          {activity.member.full_name}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={activity.activity === 'check_in' ? 'IN' : 'OUT'}
-                          color={activity.activity === 'check_in' ? 'success' : 'info'}
-                          variant="outlined"
-                        />
-                      </Box>
-                    }
-                    secondary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <AccessTimeIcon fontSize="small" color="action" />
-                          <Typography variant="caption">
-                            {formatActivityTime(activity.timestamp)}
-                          </Typography>
-                        </Box>
-                        {activity.location && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <LocationOnIcon fontSize="small" color="action" />
-                            <Typography variant="caption">
-                              {activity.location}
-                            </Typography>
-                          </Box>
-                        )}
-                        {activity.duration_minutes && activity.activity === 'check_out' && (
-                          <Typography variant="caption" color="text.secondary">
-                            Duration: {formatDuration(activity.duration_minutes)}
-                          </Typography>
-                        )}
-                      </Box>
-                    }
-                  />
-                </ListItem>
-                {index < activityFeed.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
-          </List>
-        )}
-      </Box>
-    </Card>
-  );
-
-    const StatCard: React.FC<{ title: string; value: number | string; subtitle?: string; realTime?: boolean }> = ({
+  const StatCard: React.FC<{ title: string; value: number | string; subtitle?: string }> = ({
     title,
     value,
     subtitle,
-    realTime = false,
   }) => (
     <Paper
       sx={{
@@ -259,36 +106,19 @@ export const Dashboard: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         height: 140,
-        position: 'relative',
-        border: realTime ? '2px solid' : '1px solid',
-        borderColor: realTime ? 'success.main' : 'divider',
-        backgroundColor: realTime ? 'success.50' : 'background.paper',
       }}
     >
-      {realTime && (
-        <Chip
-          size="small"
-          label="LIVE"
-          color="success"
-          variant="filled"
-          sx={{ 
-            position: 'absolute', 
-            top: 8, 
-            right: 8,
-            fontSize: '0.625rem',
-            height: 20
-          }}
-        />
-      )}
-      <Typography component="h2" variant="h6" color="primary" gutterBottom>
+      <Typography color="textSecondary" gutterBottom>
         {title}
       </Typography>
-      <Typography component="p" variant="h4">
+      <Typography component="h2" variant="h3">
         {value}
       </Typography>
-      <Typography color="text.secondary" sx={{ flex: 1 }}>
-        {subtitle}
-      </Typography>
+      {subtitle && (
+        <Typography color="textSecondary" sx={{ flex: 1 }}>
+          {subtitle}
+        </Typography>
+      )}
     </Paper>
   );
 
@@ -309,16 +139,36 @@ export const Dashboard: React.FC = () => {
       <Box 
         sx={{ 
           display: 'flex', 
-          justifyContent: 'flex-end', 
+          justifyContent: 'space-between', 
           alignItems: 'center',
           mb: 2,
           gap: 2
         }}
       >
+        {/* Tabs */}
+        <Tabs 
+          value={activeTab} 
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          aria-label="dashboard tabs"
+        >
+          <Tab 
+            icon={<DashboardIcon />} 
+            label="Overview" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<SpeedIcon />} 
+            label="Performance" 
+            iconPosition="start"
+          />
+        </Tabs>
+        
         <ConnectionStatusIndicator />
       </Box>
-      
-      <Box display="grid" sx={{ gap: 3, gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' } }}>
+
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Box display="grid" sx={{ gap: 3, gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' } }}>
         {/* Members Stats */}
         <Box>
           <StatCard
@@ -333,28 +183,19 @@ export const Dashboard: React.FC = () => {
             value={stats.members.new_today}
           />
         </Box>
-        
-        {/* Live Check-in Stats */}
         <Box>
           <StatCard
-            title="Currently In Gym"
-            value={liveStats?.currentlyIn ?? stats.checkins.current}
-            subtitle="members present"
-            realTime={liveStats !== null}
+            title="Active Subscriptions"
+            value={stats.subscriptions.active}
+            subtitle={`${stats.subscriptions.expiring_soon} expiring soon`}
           />
         </Box>
         <Box>
           <StatCard
-            title="Today's Check-ins"
-            value={liveStats?.todayTotal ?? stats.checkins.today}
-            subtitle={liveStats ? `Avg: ${liveStats.averageStayMinutes}min` : ''}
-            realTime={liveStats !== null}
+            title="Today's Revenue"
+            value={`$${stats.finance.today_revenue}`}
+            subtitle={`$${stats.finance.pending_payments} pending`}
           />
-        </Box>
-
-        {/* Activity Feed - Takes 2 columns */}
-        <Box sx={{ gridColumn: { xs: '1', md: 'span 2' } }}>
-          <ActivityFeedCard />
         </Box>
 
         {/* Member Chart */}
@@ -375,27 +216,13 @@ export const Dashboard: React.FC = () => {
           </Paper>
         </Box>
 
-        {/* Revenue and Subscriptions Stats */}
+        {/* Subscription Chart */}
         <Box sx={{ gridColumn: { xs: '1', md: 'span 2' } }}>
-          <Box display="grid" sx={{ gap: 2, gridTemplateColumns: '1fr 1fr', height: '100%' }}>
-            <StatCard
-              title="Active Subscriptions"
-              value={stats.subscriptions.active}
-              subtitle={`${stats.subscriptions.expiring_soon} expiring soon`}
-            />
-            <StatCard
-              title="Today's Revenue"
-              value={`$${stats.finance.today_revenue}`}
-              subtitle={`$${stats.finance.pending_payments} pending`}
-            />
-          </Box>
-          
-          {/* Subscription Chart */}
-          <Paper sx={{ p: 2, mt: 2 }}>
+          <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Subscription Overview
             </Typography>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={subscriptionData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
@@ -407,50 +234,51 @@ export const Dashboard: React.FC = () => {
           </Paper>
         </Box>
 
-        {/* Recent Check-ins Display */}
-        <Box sx={{ gridColumn: { xs: '1', md: 'span 2' } }}>
-          <Paper sx={{ p: 2, height: '400px' }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Check-ins
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
-              {recentCheckIns.length > 0 ? (
-                recentCheckIns.map((checkIn, index) => (
-                  <Fade in={true} key={`${checkIn.id}-${index}`}>
-                    <Box 
-                      sx={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        p: 1.5,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        backgroundColor: checkIn.status === 'checked_in' ? 'success.50' : 'grey.50'
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 32, height: 32, fontSize: '0.875rem' }}>
-                          {checkIn.member.full_name.charAt(0)}
-                        </Avatar>
-                        <Typography variant="body2" fontWeight="medium">
-                          {checkIn.member.full_name}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        label={checkIn.status === 'checked_in' ? 'CHECKED IN' : 'CHECKED OUT'}
-                        size="small"
-                        color={checkIn.status === 'checked_in' ? 'success' : 'default'}
-                        variant="outlined"
-                      />
-                    </Box>
-                  </Fade>
-                ))
-              ) : (
-                <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', mt: 4 }}>
-                  No recent check-ins
+        {/* Check-ins */}
+        <Box sx={{ gridColumn: '1 / -1' }}>
+          <Paper sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Check-ins Today: {stats.checkins.today}
                 </Typography>
-              )}
+                <Typography color="textSecondary">
+                  Currently in gym: {' '}
+                  <Badge 
+                    badgeContent={stats.checkins.current} 
+                    color="primary" 
+                    max={99}
+                    showZero
+                  >
+                    <PeopleIcon color="action" />
+                  </Badge>
+                </Typography>
+              </Box>
+              
+              {/* Recent Check-ins */}
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Recent Activity
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {recentCheckIns.length > 0 ? (
+                    recentCheckIns.map((checkIn, index) => (
+                      <Fade in={true} key={`${checkIn.id}-${index}`}>
+                        <Chip
+                          label={`${checkIn.member.full_name} ${checkIn.status === 'checked_in' ? 'in' : 'out'}`}
+                          size="small"
+                          color={checkIn.status === 'checked_in' ? 'success' : 'default'}
+                          sx={{ mb: 0.5 }}
+                        />
+                      </Fade>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="textSecondary">
+                      No recent activity
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
             </Box>
           </Paper>
         </Box>
@@ -460,6 +288,12 @@ export const Dashboard: React.FC = () => {
           <ExpiringMemberships />
         </Box>
       </Box>
+      )}
+
+      {/* Performance Dashboard Tab */}
+      {activeTab === 1 && (
+        <PerformanceDashboard />
+      )}
       
       {/* Notification Snackbar */}
       <Snackbar

@@ -35,10 +35,6 @@ export interface WebSocketMessage<T = unknown> {
     | 'member_checked_in'
     | 'member_checked_out'
     | 'check_in_stats'
-    | 'stats_update'
-    | 'activity_notification'
-    | 'initial_stats'
-    | 'heartbeat_ack'
     | 'error'
     | string;
   payload: T;
@@ -47,24 +43,6 @@ export interface WebSocketMessage<T = unknown> {
 export interface CheckInWebSocketEvent {
   type: 'check_in' | 'check_out';
   checkIn: CheckInEvent;
-}
-
-export interface ActivityNotification {
-  type: 'member_activity';
-  activity: 'check_in' | 'check_out';
-  member: {
-    id: string;
-    full_name: string;
-  };
-  timestamp: string;
-  location?: string;
-  duration_minutes?: number;
-}
-
-export interface CheckInStats {
-  currentlyIn: number;
-  todayTotal: number;
-  averageStayMinutes: number;
 }
 
 export class WebSocketService {
@@ -216,7 +194,6 @@ export class WebSocketService {
         this.notifyConnectionStatusChange();
         this.setupPing();
         this.setupHeartbeat();
-        this.startPerformanceMonitoring(); // Start performance monitoring
         
         // Set the socket for the message batcher
         if (this.socket) {
@@ -234,17 +211,9 @@ export class WebSocketService {
 
       this.socket.onmessage = (event) => {
         try {
-          const messageStartTime = Date.now();
-          this.messageMetrics.totalReceived++;
-          
-          const message: WebSocketMessage = JSON.parse(event.data);
+          const message = JSON.parse(event.data) as WebSocketMessage;
           const { type, payload } = message;
-          
-          // Track handler access for memory cleanup
-          this.handlerAccessTime.set(type, Date.now());
 
-          console.debug('Received WebSocket message:', { type, payload });
-          
           // URL-based authentication via middleware - no auth messages needed
           // Authentication success/error handled by connection acceptance/rejection
 
@@ -252,14 +221,6 @@ export class WebSocketService {
           if (type === 'heartbeat_ack') {
             const now = Date.now();
             const timeSinceLastAck = now - this.lastHeartbeatAck;
-            
-            // Track latency
-            const latency = now - messageStartTime;
-            this.messageMetrics.latencyMeasurements.push(latency);
-            this.messageMetrics.avgLatency = 
-              this.messageMetrics.latencyMeasurements.reduce((a, b) => a + b, 0) / 
-              this.messageMetrics.latencyMeasurements.length;
-            
             console.debug(`Received heartbeat ack after ${Math.round(timeSinceLastAck/1000)}s`);
             this.lastHeartbeatAck = now;
             this.missedHeartbeats = 0;
@@ -277,14 +238,7 @@ export class WebSocketService {
               const handlers = this.messageHandlers.get(msgType);
               if (handlers) {
                 (data as unknown[]).forEach(item => {
-                  handlers.forEach(handler => {
-                    try {
-                      handler(item);
-                    } catch (error) {
-                      console.error(`Error in handler for ${msgType}:`, error);
-                      this.messageMetrics.errorsCount++;
-                    }
-                  });
+                  handlers.forEach(handler => handler(item));
                 });
               }
             });
@@ -293,20 +247,14 @@ export class WebSocketService {
 
           const handlers = this.messageHandlers.get(type);
           if (handlers && payload !== undefined && payload !== null) {
-            handlers.forEach(handler => {
-              try {
-                handler(payload);
-              } catch (error) {
-                console.error(`Error in handler for ${type}:`, error);
-                this.messageMetrics.errorsCount++;
-              }
-            });
+            handlers.forEach(handler => handler(payload));
           }
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
-          this.messageMetrics.errorsCount++;
         }
-      };      this.socket.onclose = () => {
+      };
+
+      this.socket.onclose = () => {
         clearTimeout(connectionTimeout);
         const error = new Error('WebSocket disconnected');
         console.log(error.message);
@@ -525,9 +473,16 @@ export class WebSocketService {
     return new Promise((resolve, reject) => {
       if (this.socket?.readyState === WebSocket.OPEN) {
         try {
+          this.messageMetrics.totalSent++;
+          
           // Use message batching for high-volume events
           if (['check_in_update', 'member_update', 'notification'].includes(event)) {
-            this.messageBatcher.add(event, data);
+            // High-volume events get batched with medium priority
+            this.messageBatcher.add(event, data, 'medium');
+            resolve();
+          } else if (['error', 'authentication', 'heartbeat'].includes(event)) {
+            // Critical events get high priority and immediate sending
+            this.messageBatcher.add(event, data, 'high');
             resolve();
           } else {
             // Send immediately for important events
@@ -536,6 +491,7 @@ export class WebSocketService {
           }
         } catch (error) {
           console.error('Error sending WebSocket message:', error);
+          this.messageMetrics.errorsCount++;
           reject(error);
         }
       } else {
@@ -547,6 +503,7 @@ export class WebSocketService {
         } else {
           const error = new Error('WebSocket is not connected');
           console.error(error);
+          this.messageMetrics.errorsCount++;
           reject(error);
         }
       }
@@ -563,7 +520,6 @@ export class WebSocketService {
       this.socket = null;
     }
     this.clearIntervals();
-    this.stopPerformanceMonitoring();
     
     // Preserve authentication_failed status, otherwise set to disconnected
     if (this.connectionStatus !== 'authentication_failed') {
@@ -602,109 +558,6 @@ export class WebSocketService {
   public async checkOutMember(data: CheckOutData): Promise<void> {
     return this.send('check_out', data);
   }
-
-  // Phase 5: Performance optimization methods
-  private startPerformanceMonitoring() {
-    if (!this.performanceOptimizationEnabled) return;
-
-    this.memoryMonitor = setInterval(() => {
-      this.performMemoryCleanup();
-      this.updateConnectionQuality();
-      this.logPerformanceMetrics();
-    }, this.MEMORY_CHECK_INTERVAL);
-  }
-
-  private stopPerformanceMonitoring() {
-    if (this.memoryMonitor) {
-      clearInterval(this.memoryMonitor);
-      this.memoryMonitor = null;
-    }
-  }
-
-  private performMemoryCleanup() {
-    const now = Date.now();
-    
-    // Clean up old handler access times
-    Array.from(this.handlerAccessTime.entries()).forEach(([handlerType, lastAccess]) => {
-      if (now - lastAccess > this.MAX_HANDLER_CLEANUP_AGE) {
-        this.handlerAccessTime.delete(handlerType);
-      }
-    });
-
-    // Limit latency measurements to last 100 entries
-    if (this.messageMetrics.latencyMeasurements.length > 100) {
-      this.messageMetrics.latencyMeasurements = this.messageMetrics.latencyMeasurements.slice(-50);
-    }
-
-    // Reset metrics if too old
-    if (now - this.messageMetrics.lastResetTime > 3600000) { // 1 hour
-      this.resetMetrics();
-    }
-  }
-
-  private updateConnectionQuality() {
-    const dropRate = this.messageMetrics.errorsCount / Math.max(1, this.messageMetrics.totalSent);
-    const avgLatency = this.messageMetrics.avgLatency;
-    
-    // Calculate quality factors (0-100 scale)
-    this.connectionQuality.factors.dropRate = Math.max(0, 100 - (dropRate * 1000));
-    this.connectionQuality.factors.latency = Math.max(0, 100 - Math.min(100, avgLatency / 10));
-    this.connectionQuality.factors.stability = this.reconnectAttempts === 0 ? 100 : Math.max(0, 100 - (this.reconnectAttempts * 20));
-    
-    // Overall score is weighted average
-    this.connectionQuality.score = Math.round(
-      (this.connectionQuality.factors.dropRate * 0.4) +
-      (this.connectionQuality.factors.latency * 0.3) +
-      (this.connectionQuality.factors.stability * 0.3)
-    );
-  }
-
-  private logPerformanceMetrics() {
-    if (this.messageMetrics.totalReceived % 1000 === 0 && this.messageMetrics.totalReceived > 0) {
-      console.debug('WebSocket Performance Metrics:', {
-        totalMessages: this.messageMetrics.totalReceived,
-        totalSent: this.messageMetrics.totalSent,
-        errors: this.messageMetrics.errorsCount,
-        avgLatency: this.messageMetrics.avgLatency.toFixed(2) + 'ms',
-        connectionQuality: this.connectionQuality.score + '%',
-        batchingStats: this.messageBatcher.getStatistics()
-      });
-    }
-  }
-
-  private resetMetrics() {
-    this.messageMetrics = {
-      totalReceived: 0,
-      totalSent: 0,
-      errorsCount: 0,
-      lastResetTime: Date.now(),
-      avgLatency: 0,
-      latencyMeasurements: []
-    };
-  }
-
-  // Public methods for performance monitoring
-  getPerformanceMetrics() {
-    return {
-      messages: { ...this.messageMetrics },
-      connectionQuality: { ...this.connectionQuality },
-      batcher: this.messageBatcher.getStatistics(),
-      handlers: {
-        totalTypes: this.messageHandlers.size,
-        activeHandlers: Array.from(this.messageHandlers.values()).reduce((sum, handlers) => sum + handlers.size, 0)
-      }
-    };
-  }
-
-  enablePerformanceOptimization(enabled: boolean) {
-    this.performanceOptimizationEnabled = enabled;
-    if (enabled && this.connectionStatus === 'connected') {
-      this.startPerformanceMonitoring();
-    } else {
-      this.stopPerformanceMonitoring();
-    }
-  }
-}
 }
 
 // Message batching for high-volume scenarios

@@ -102,6 +102,11 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                     return
                 return
 
+            # Handle batch messages (Phase 5 optimization)
+            if event_type == 'batch':
+                await self.handle_batch_messages(data.get('batches', {}))
+                return
+
             if event_type == 'authenticate':
                 # Authentication handled by URL token via JWTAuthMiddleware
                 # No need for message-based authentication
@@ -129,6 +134,59 @@ class CheckInConsumer(AsyncWebsocketConsumer):
                 await self.send(json.dumps({'type': 'error', 'message': 'Invalid JSON format'}))
             except Exception as send_error:
                 print(f"WebSocket: Error sending JSON error: {send_error}")
+
+    async def handle_batch_messages(self, batches):
+        """
+        Phase 5: Handle batched messages for performance optimization
+        """
+        print(f"WebSocket: Processing batch with {len(batches)} message types")
+        
+        for message_type, message_list in batches.items():
+            try:
+                print(f"WebSocket: Processing {len(message_list)} messages of type {message_type}")
+                
+                if message_type == 'check_in':
+                    for payload in message_list:
+                        await self.handle_check_in(payload)
+                elif message_type == 'check_out':
+                    for payload in message_list:
+                        await self.handle_check_out(payload)
+                elif message_type == 'check_in_update':
+                    # Handle bulk check-in updates efficiently
+                    await self.handle_bulk_check_in_updates(message_list)
+                elif message_type == 'member_update':
+                    # Handle bulk member updates
+                    await self.handle_bulk_member_updates(message_list)
+                else:
+                    print(f"WebSocket: Unknown batch message type: {message_type}")
+                    
+            except Exception as e:
+                print(f"WebSocket: Error processing batch message type {message_type}: {e}")
+                # Continue processing other message types even if one fails
+                continue
+    
+    async def handle_bulk_check_in_updates(self, updates):
+        """Handle multiple check-in updates efficiently"""
+        try:
+            # Process updates in bulk for better performance
+            for update in updates:
+                # This would typically batch database operations
+                print(f"WebSocket: Processing check-in update: {update}")
+                # For now, just log - in real implementation, this would batch DB operations
+                
+        except Exception as e:
+            print(f"WebSocket: Error in bulk check-in updates: {e}")
+    
+    async def handle_bulk_member_updates(self, updates):
+        """Handle multiple member updates efficiently"""
+        try:
+            # Process member updates in bulk
+            for update in updates:
+                print(f"WebSocket: Processing member update: {update}")
+                # For now, just log - in real implementation, this would batch DB operations
+                
+        except Exception as e:
+            print(f"WebSocket: Error in bulk member updates: {e}")
 
     @database_sync_to_async
     def get_user(self, user_id):
