@@ -9,17 +9,14 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 
 import os
 import django
-from django.core.asgi import get_asgi_application
-
-# Initialize Django settings and apps FIRST
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gymapp.settings')
-django.setup()  # Initialize Django ASGI application early to ensure apps are loaded
-
-# NOW import other modules that depend on Django apps being loaded
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
+from django.core.asgi import get_asgi_application
 from checkins.consumers import JWTAuthMiddleware
 import checkins.routing
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gymapp.settings')
+django.setup()  # Initialize Django ASGI application early to ensure apps are loaded
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),

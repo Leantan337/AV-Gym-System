@@ -1,3 +1,5 @@
+import { analyticsEngine } from './analytics';
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed' | 'authentication_failed';
 
 type MessageHandler<T = unknown> = (data: T) => void;
@@ -179,6 +181,11 @@ export class WebSocketService {
         clearTimeout(connectionTimeout);
         const connectionTime = Date.now() - this.connectionStartTime;
         console.log(`WebSocket connected successfully in ${connectionTime}ms`);
+        
+        // Track connection event
+        analyticsEngine.trackConnectionEvent('connected', undefined, undefined);
+        analyticsEngine.trackPerformanceEvent('connection_time', connectionTime);
+        
         this.reconnectAttempts = 0;
         this.lastDisconnectTime = 0;
         this.missedHeartbeats = 0;
@@ -258,6 +265,10 @@ export class WebSocketService {
         clearTimeout(connectionTimeout);
         const error = new Error('WebSocket disconnected');
         console.log(error.message);
+        
+        // Track disconnection event
+        analyticsEngine.trackConnectionEvent('disconnected');
+        
         // Handle specific close codes (cannot access code/reason without param, so just log generic)
         // Only attempt to reconnect if it wasn't a clean close
         this.reconnect(error);
@@ -267,6 +278,11 @@ export class WebSocketService {
         clearTimeout(connectionTimeout);
         const error = new Error('WebSocket error occurred');
         console.error('WebSocket error:', error);
+        
+        // Track error event
+        analyticsEngine.trackConnectionEvent('failed');
+        analyticsEngine.trackErrorEvent('websocket_error', error);
+        
         this.handleConnectionError(error);
       };
     } catch (error) {
@@ -551,12 +567,114 @@ export class WebSocketService {
     }
   }
 
+  // Phase 5: Performance monitoring methods
+  private startPerformanceMonitoring() {
+    if (!this.performanceOptimizationEnabled) return;
+
+    this.memoryMonitor = setInterval(() => {
+      this.performMemoryCleanup();
+      this.updateConnectionQuality();
+      this.logPerformanceMetrics();
+    }, this.MEMORY_CHECK_INTERVAL);
+  }
+
+  private stopPerformanceMonitoring() {
+    if (this.memoryMonitor) {
+      clearInterval(this.memoryMonitor);
+      this.memoryMonitor = null;
+    }
+  }
+
+  private performMemoryCleanup() {
+    const now = Date.now();
+    
+    // Clean up old handler access times
+    Array.from(this.handlerAccessTime.entries()).forEach(([handlerType, lastAccess]) => {
+      if (now - lastAccess > this.MAX_HANDLER_CLEANUP_AGE) {
+        this.handlerAccessTime.delete(handlerType);
+      }
+    });
+
+    // Limit latency measurements to last 100 entries
+    if (this.messageMetrics.latencyMeasurements.length > 100) {
+      this.messageMetrics.latencyMeasurements = this.messageMetrics.latencyMeasurements.slice(-50);
+    }
+
+    // Reset metrics if too old
+    if (now - this.messageMetrics.lastResetTime > 3600000) { // 1 hour
+      this.resetMetrics();
+    }
+  }
+
+  private updateConnectionQuality() {
+    const dropRate = this.messageMetrics.errorsCount / Math.max(1, this.messageMetrics.totalSent);
+    const avgLatency = this.messageMetrics.avgLatency;
+    
+    // Calculate quality factors (0-100 scale)
+    this.connectionQuality.factors.dropRate = Math.max(0, 100 - (dropRate * 1000));
+    this.connectionQuality.factors.latency = Math.max(0, 100 - Math.min(100, avgLatency / 10));
+    this.connectionQuality.factors.stability = this.reconnectAttempts === 0 ? 100 : Math.max(0, 100 - (this.reconnectAttempts * 20));
+    
+    // Overall score is weighted average
+    this.connectionQuality.score = Math.round(
+      (this.connectionQuality.factors.dropRate * 0.4) +
+      (this.connectionQuality.factors.latency * 0.3) +
+      (this.connectionQuality.factors.stability * 0.3)
+    );
+  }
+
+  private logPerformanceMetrics() {
+    if (this.messageMetrics.totalReceived % 1000 === 0 && this.messageMetrics.totalReceived > 0) {
+      console.debug('WebSocket Performance Metrics:', {
+        totalMessages: this.messageMetrics.totalReceived,
+        totalSent: this.messageMetrics.totalSent,
+        errors: this.messageMetrics.errorsCount,
+        avgLatency: this.messageMetrics.avgLatency.toFixed(2) + 'ms',
+        connectionQuality: this.connectionQuality.score + '%',
+        batchingStats: this.messageBatcher.getStatistics()
+      });
+    }
+  }
+
+  private resetMetrics() {
+    this.messageMetrics = {
+      totalReceived: 0,
+      totalSent: 0,
+      errorsCount: 0,
+      lastResetTime: Date.now(),
+      avgLatency: 0,
+      latencyMeasurements: []
+    };
+  }
+
   public async checkInMember(data: CheckInData): Promise<void> {
     return this.send('check_in', data);
   }
 
   public async checkOutMember(data: CheckOutData): Promise<void> {
     return this.send('check_out', data);
+  }
+
+  // Phase 5: Performance optimization methods
+  getPerformanceMetrics() {
+    return {
+      messages: { ...this.messageMetrics },
+      connectionQuality: { ...this.connectionQuality },
+      batcher: this.messageBatcher.getStatistics(),
+      handlers: {
+        totalTypes: this.messageHandlers.size,
+        activeHandlers: Array.from(this.messageHandlers.values()).reduce((sum, handlers) => sum + handlers.size, 0)
+      }
+    };
+  }
+
+  enablePerformanceOptimization(enabled: boolean) {
+    this.performanceOptimizationEnabled = enabled;
+    if (enabled && this.connectionStatus === 'connected') {
+      this.startPerformanceMonitoring();
+    } else {
+      this.stopPerformanceMonitoring();
+    }
   }
 }
 

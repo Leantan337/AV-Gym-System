@@ -13,9 +13,13 @@ import { useWebSocket } from '../contexts/WebSocketContext';
 import { CheckInEvent } from '../services/websocket';
 import { ConnectionStatusIndicator } from './common/ConnectionStatusIndicator';
 import PerformanceDashboard from './PerformanceDashboard';
+import ConnectionPoolDashboard from './ConnectionPoolDashboard';
+import AnalyticsDashboard from './AnalyticsDashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SpeedIcon from '@mui/icons-material/Speed';
+import SettingsEthernetIcon from '@mui/icons-material/SettingsEthernet';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 
 interface DashboardStats {
   members: {
@@ -161,6 +165,16 @@ export const Dashboard: React.FC = () => {
             label="Performance" 
             iconPosition="start"
           />
+          <Tab 
+            icon={<SettingsEthernetIcon />} 
+            label="Connection Pools" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<AnalyticsIcon />} 
+            label="Analytics" 
+            iconPosition="start"
+          />
         </Tabs>
         
         <ConnectionStatusIndicator />
@@ -293,6 +307,16 @@ export const Dashboard: React.FC = () => {
       {/* Performance Dashboard Tab */}
       {activeTab === 1 && (
         <PerformanceDashboard />
+      )}
+
+      {/* Connection Pool Dashboard Tab */}
+      {activeTab === 2 && (
+        <ConnectionPoolDashboard />
+      )}
+
+      {/* Analytics Dashboard Tab */}
+      {activeTab === 3 && (
+        <AnalyticsDashboard />
       )}
       
       {/* Notification Snackbar */}

@@ -3,8 +3,8 @@
 # Production Deployment Script for AV Gym System
 echo "🚀 Starting production deployment..."
 
-# Load production environment
-export $(cat .env.production | xargs)
+# Load production environment (filter out comments and empty lines)
+export $(cat .env.production | grep -v '^#' | grep -v '^$' | xargs)
 
 # Pull latest changes
 echo "📥 Pulling latest changes..."
@@ -20,7 +20,7 @@ docker-compose down
 
 # Start containers with production config
 echo "▶️  Starting containers..."
-docker-compose --env-file .env.unified up -d
+docker-compose --env-file .env.production up -d
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to start..."

@@ -3,7 +3,6 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
   Grid,
   Typography,
   LinearProgress,

@@ -277,7 +277,13 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-# Content Security Policy (CSP) settings - See override section at end of file
+# Content Security Policy (CSP) settings for enhanced security
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
+CSP_IMG_SRC = ("'self'", "data:", "blob:")
+CSP_CONNECT_SRC = ("'self'", "http://46.101.193.107:8000", "ws://46.101.193.107:8000", "ws://localhost:8000", "wss://46.101.193.107:8000", "wss://localhost:8000")
 
 # --- Email Configuration ---
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend')
@@ -363,7 +369,7 @@ LOGGING = {
 }
 
 # Force CSP override for WebSocket connections (Phase 1 Fix)
-CSP_CONNECT_SRC = [
+CSP_CONNECT_SRC = (
     "'self'",
     "http://46.101.193.107:8000",
     "ws://46.101.193.107:8000", 
@@ -371,20 +377,14 @@ CSP_CONNECT_SRC = [
     "wss://46.101.193.107:8000",
     "wss://localhost:8000",
     "'unsafe-inline'",  # Allow inline connections if needed
-]
+)
 
 # Force CSP script source for WebSocket initialization
-CSP_SCRIPT_SRC = [
+CSP_SCRIPT_SRC = (
     "'self'",
     "'unsafe-inline'",  # Required for React inline scripts
     "'unsafe-eval'",   # Required for dynamic script evaluation
-]
-
-# Force CSP default directives to lists for proper middleware compatibility
-CSP_DEFAULT_SRC = ["'self'"]
-CSP_STYLE_SRC = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
-CSP_FONT_SRC = ["'self'", "https://fonts.gstatic.com"]
-CSP_IMG_SRC = ["'self'", "data:", "blob:"]
+)
 
 # Ensure CSP middleware is properly applied
 CSP_REPORT_ONLY = False
