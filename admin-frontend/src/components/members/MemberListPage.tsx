@@ -37,30 +37,7 @@ export default function MemberListPage() {
   // Fetch members data
   const { data: members = [], isLoading } = useQuery<Member[]>({
     queryKey: ['members'],
-    queryFn: () => adminApi.getMembers().then(apiMembers => {
-      // Convert API member format to our Member type format
-      return apiMembers.map(apiMember => ({
-        id: apiMember.id,
-        first_name: apiMember.full_name.split(' ')[0] || '',
-        last_name: apiMember.full_name.split(' ').slice(1).join(' ') || '',
-        email: `${apiMember.full_name.split(' ')[0].toLowerCase()}@example.com`, // Mock email data as it's not in the API response
-        phone: apiMember.phone,
-        address: apiMember.address,
-        photo_url: apiMember.image_url,
-        membership: {
-          type: 'Standard', // Mock data as it's not in the API response
-          status: apiMember.status as 'active' | 'inactive' | 'pending',
-          join_date: new Date().toISOString().split('T')[0], // Mock join date
-          expiry_date: new Date(Date.now() + 31536000000).toISOString().split('T')[0] // Mock expiry date (1 year from now)
-        },
-        emergency_contact: {
-          name: 'Emergency Contact', // Mock data as it's not in the API response
-          phone: '555-123-4567',
-          relationship: 'Family'
-        },
-        access_privileges: ['Gym Access'] // Mock data as it's not in the API response
-      }));
-    })
+    queryFn: () => adminApi.getMembers()
   });
 
   // Delete mutation
@@ -73,10 +50,10 @@ export default function MemberListPage() {
 
   // Filter members based on search term
   const filteredMembers = members.filter((member: Member) => 
-    member.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.phone.includes(searchTerm)
+    member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.phone.includes(searchTerm) ||
+    member.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.membership_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Handle page change
@@ -173,10 +150,10 @@ export default function MemberListPage() {
               <TableHead>
                 <TableRow>
                   <TableCell>Name</TableCell>
-                  <TableCell>Email</TableCell>
                   <TableCell>Phone</TableCell>
-                  <TableCell>Membership Status</TableCell>
-                  <TableCell>Expiry Date</TableCell>
+                  <TableCell>Address</TableCell>
+                  <TableCell>Membership Number</TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -189,20 +166,17 @@ export default function MemberListPage() {
                         onClick={() => handleViewMember(member)} 
                         sx={{ cursor: 'pointer' }}
                       >
-                        {member.first_name} {member.last_name}
+                        {member.full_name}
                       </TableCell>
-                      <TableCell>{member.email}</TableCell>
                       <TableCell>{member.phone}</TableCell>
+                      <TableCell>{member.address}</TableCell>
+                      <TableCell>{member.membership_number}</TableCell>
                       <TableCell>
                         <Chip 
-                          label={member.membership.status} 
-                          color={member.membership.status === 'active' ? 'success' : 
-                                 member.membership.status === 'pending' ? 'warning' : 'error'} 
+                          label={member.status} 
+                          color={member.status === 'active' ? 'success' : 'error'} 
                           size="small" 
                         />
-                      </TableCell>
-                      <TableCell>
-                        {new Date(member.membership.expiry_date).toLocaleDateString()}
                       </TableCell>
                       <TableCell align="center">
                         <Tooltip title="Edit">
@@ -252,7 +226,7 @@ export default function MemberListPage() {
       {/* Member Form Dialog */}
       <MemberForm
         open={openFormDialog}
-        member={selectedMember}
+        member={selectedMember || undefined}
         onClose={handleFormDialogClose}
       />
     </Box>

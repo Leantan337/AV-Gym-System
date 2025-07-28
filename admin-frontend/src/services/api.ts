@@ -158,11 +158,14 @@ export interface DashboardStats {
 export interface Member {
   id: string;
   full_name: string;
-  status: string;
+  status: 'active' | 'inactive';
   phone: string;
   address: string;
   membership_number: string;
   image_url?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface MemberSearchResult {

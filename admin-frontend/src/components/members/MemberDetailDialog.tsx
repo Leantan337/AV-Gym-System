@@ -53,19 +53,16 @@ function MemberDetailDialog({ open, member, onClose, onEdit }: MemberDetailDialo
           <Box sx={{ width: { xs: '100%', md: '33.333%' } }}>
             <Box sx={{ textAlign: "center" }}>
               <Avatar
-                src={member.photo_url}
-                alt={`${member.first_name} ${member.last_name}`}
+                src={member.image_url}
+                alt={member.full_name}
                 sx={{ width: 150, height: 150, margin: '0 auto 16px' }}
               />
               <Typography variant="h6">
-                {member.first_name} {member.last_name}
+                {member.full_name}
               </Typography>
               <Chip
-                label={member.membership.status}
-                color={
-                  member.membership.status === 'active' ? 'success' :
-                  member.membership.status === 'pending' ? 'warning' : 'error'
-                }
+                label={member.status}
+                color={member.status === 'active' ? 'success' : 'error'}
                 sx={{ mt: 1 }}
               />
             </Box>
@@ -77,10 +74,6 @@ function MemberDetailDialog({ open, member, onClose, onEdit }: MemberDetailDialo
               <Box sx={{ width: '100%' }}>
                 <Typography variant="subtitle1" fontWeight="bold">Contact Information</Typography>
                 <Divider sx={{ my: 1 }} />
-              </Box>
-              <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
-                <Typography variant="body2" color="text.secondary">Email</Typography>
-                <Typography variant="body1">{member.email}</Typography>
               </Box>
               <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
                 <Typography variant="body2" color="text.secondary">Phone</Typography>
@@ -97,51 +90,42 @@ function MemberDetailDialog({ open, member, onClose, onEdit }: MemberDetailDialo
                 <Divider sx={{ my: 1 }} />
               </Box>
               <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
-                <Typography variant="body2" color="text.secondary">Membership Type</Typography>
-                <Typography variant="body1">{member.membership.type}</Typography>
+                <Typography variant="body2" color="text.secondary">Membership Number</Typography>
+                <Typography variant="body1">{member.membership_number}</Typography>
               </Box>
               <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
                 <Typography variant="body2" color="text.secondary">Status</Typography>
-                <Typography variant="body1">{member.membership.status}</Typography>
+                <Typography variant="body1">{member.status}</Typography>
               </Box>
               <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
-                <Typography variant="body2" color="text.secondary">Join Date</Typography>
-                <Typography variant="body1">{formatDate(member.membership.join_date)}</Typography>
+                <Typography variant="body2" color="text.secondary">Created Date</Typography>
+                <Typography variant="body1">{member.created_at ? formatDate(member.created_at) : 'N/A'}</Typography>
               </Box>
               <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
-                <Typography variant="body2" color="text.secondary">Expiry Date</Typography>
-                <Typography variant="body1">{formatDate(member.membership.expiry_date)}</Typography>
+                <Typography variant="body2" color="text.secondary">Last Updated</Typography>
+                <Typography variant="body1">{member.updated_at ? formatDate(member.updated_at) : 'N/A'}</Typography>
               </Box>
 
-              {/* Emergency Contact */}
-              <Box sx={{ width: '100%', mt: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold">Emergency Contact</Typography>
-                <Divider sx={{ my: 1 }} />
-              </Box>
-              <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
-                <Typography variant="body2" color="text.secondary">Name</Typography>
-                <Typography variant="body1">{member.emergency_contact.name}</Typography>
-              </Box>
-              <Box sx={{ width: { xs: '100%', sm: '48%' } }}>
-                <Typography variant="body2" color="text.secondary">Phone</Typography>
-                <Typography variant="body1">{member.emergency_contact.phone}</Typography>
-              </Box>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="body2" color="text.secondary">Relationship</Typography>
-                <Typography variant="body1">{member.emergency_contact.relationship}</Typography>
-              </Box>
+              {/* Notes */}
+              {member.notes && (
+                <>
+                  <Box sx={{ width: '100%', mt: 2 }}>
+                    <Typography variant="subtitle1" fontWeight="bold">Notes</Typography>
+                    <Divider sx={{ my: 1 }} />
+                  </Box>
+                  <Box sx={{ width: '100%' }}>
+                    <Typography variant="body1">{member.notes}</Typography>
+                  </Box>
+                </>
+              )}
 
-              {/* Access Privileges */}
+              {/* Future Features Placeholder */}
               <Box sx={{ width: '100%', mt: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold">Access Privileges</Typography>
+                <Typography variant="subtitle1" fontWeight="bold">Additional Features</Typography>
                 <Divider sx={{ my: 1 }} />
-              </Box>
-              <Box sx={{ width: '100%' }}>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {member.access_privileges.map((privilege, index) => (
-                    <Chip key={index} label={privilege} color="primary" size="small" />
-                  ))}
-                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  Emergency contacts, access privileges, and membership plans will be available in future updates.
+                </Typography>
               </Box>
             </Box>
           </Box>
