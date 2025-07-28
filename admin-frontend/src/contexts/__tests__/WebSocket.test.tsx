@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { WebSocketProvider, useWebSocket } from '../WebSocketContext';
 import { CheckInProvider, useCheckIn } from '../CheckInContext';
@@ -148,8 +149,6 @@ describe('WebSocket Integration Tests', () => {
     });
 
     it('should handle authentication token updates', () => {
-      const mockToken = 'test-jwt-token';
-      
       render(
         <TestWrapper>
           <TestComponent />

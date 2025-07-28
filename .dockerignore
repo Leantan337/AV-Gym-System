@@ -106,4 +106,4 @@ cache/
 tmp/
 temp/
 *.tmp
-*.temp 
+*.temp admin-frontend/
