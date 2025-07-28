@@ -103,8 +103,20 @@ export class WebSocketService {
       console.error('Invalid WebSocket base URL:', baseUrl);
       throw new Error('Invalid WebSocket base URL');
     }
+    
+    // Enhanced debugging information
+    console.log('🔌 WebSocketService initialized');
+    console.log('📍 Base URL:', baseUrl);
+    console.log('🌐 Current location:', window.location.href);
+    console.log('🔧 Environment detection:', {
+      hostname: window.location.hostname,
+      port: window.location.port,
+      protocol: window.location.protocol,
+      userAgent: navigator.userAgent.substring(0, 50) + '...'
+    });
+    
     // Don't connect immediately - wait for auth token to be set
-    console.log('WebSocketService initialized, waiting for authentication token');
+    console.log('⏳ Waiting for authentication token...');
   }
 
   private getWebSocketUrl(): string {
@@ -113,10 +125,17 @@ export class WebSocketService {
       if (this.authToken) {
         url.searchParams.set('token', this.authToken);
       }
-      console.debug('WebSocket URL:', url.toString().replace(this.authToken || '', '[TOKEN]'));
-      return url.toString();
+      
+      const finalUrl = url.toString();
+      const safeUrl = finalUrl.replace(this.authToken || '', '[TOKEN_HIDDEN]');
+      
+      console.log('🔗 Final WebSocket URL:', safeUrl);
+      console.log('🎫 Auth token present:', !!this.authToken);
+      console.log('📏 Token length:', this.authToken?.length || 0);
+      
+      return finalUrl;
     } catch (error) {
-      console.error('Error constructing WebSocket URL:', error);
+      console.error('❌ Error constructing WebSocket URL:', error);
       throw new Error('Failed to construct WebSocket URL');
     }
   }
@@ -160,12 +179,22 @@ export class WebSocketService {
     }
 
     try {
-      console.debug(`Initiating WebSocket connection... (${reconnectAttempt ? 'reconnect attempt' : 'initial connection'})`);
+      const connectionType = reconnectAttempt ? 'reconnect attempt' : 'initial connection';
+      console.log(`🚀 Initiating WebSocket connection... (${connectionType})`);
+      console.log('🔄 Connection attempt:', this.reconnectAttempts + 1);
+      
       this.connectionStatus = 'connecting';
       this.notifyConnectionStatusChange();
       this.manualReconnectTriggered = manualReconnect;
       this.missedHeartbeats = 0;
       this.connectionStartTime = Date.now();
+      
+      console.log('📊 Connection state:', {
+        status: this.connectionStatus,
+        attempts: this.reconnectAttempts,
+        hasToken: !!this.authToken,
+        timestamp: new Date().toISOString()
+      });
       
       // Set connection timeout
       const connectionTimeout = setTimeout(() => {
@@ -261,23 +290,55 @@ export class WebSocketService {
         }
       };
 
-      this.socket.onclose = () => {
+      this.socket.onclose = (event) => {
         clearTimeout(connectionTimeout);
-        const error = new Error('WebSocket disconnected');
-        console.log(error.message);
+        const { code, reason, wasClean } = event;
+        
+        console.log(`🔌 WebSocket connection closed:`, {
+          code,
+          reason: reason || 'No reason provided',
+          wasClean,
+          timestamp: new Date().toISOString()
+        });
         
         // Track disconnection event
         analyticsEngine.trackConnectionEvent('disconnected');
         
-        // Handle specific close codes (cannot access code/reason without param, so just log generic)
-        // Only attempt to reconnect if it wasn't a clean close
-        this.reconnect(error);
+        // Provide user-friendly error messages based on close codes
+        let errorMessage = 'WebSocket disconnected';
+        if (code === 4001) {
+          errorMessage = 'Authentication failed - invalid or expired token';
+          this.connectionStatus = 'authentication_failed';
+        } else if (code === 1006) {
+          errorMessage = 'Connection lost unexpectedly (network issue)';
+        } else if (code === 1000) {
+          errorMessage = 'Connection closed normally';
+        } else if (code >= 4000) {
+          errorMessage = `Application error (code: ${code})`;
+        }
+        
+        const error = new Error(errorMessage);
+        console.log(`📋 Close details: ${errorMessage}`);
+        
+        // Only attempt to reconnect if it wasn't a clean close or auth failure
+        if (code !== 1000 && code !== 4001) {
+          this.reconnect(error);
+        } else {
+          this.notifyConnectionStatusChange();
+        }
       };
 
-      this.socket.onerror = () => {
+      this.socket.onerror = (errorEvent) => {
         clearTimeout(connectionTimeout);
-        const error = new Error('WebSocket error occurred');
-        console.error('WebSocket error:', error);
+        
+        console.error('🚨 WebSocket error event:', {
+          type: errorEvent.type,
+          target: errorEvent.target?.constructor?.name,
+          readyState: this.socket?.readyState,
+          timestamp: new Date().toISOString()
+        });
+        
+        const error = new Error('WebSocket connection error occurred');
         
         // Track error event
         analyticsEngine.trackConnectionEvent('failed');
@@ -904,24 +965,20 @@ class MessageBatcher {
   }
 }
 
-// Determine WebSocket URL based on environment
+// Determine WebSocket URL based on environment - Always use nginx proxy
 const getWebSocketUrl = () => {
-  // Check if running in Docker environment
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const hostname = window.location.hostname;
   
-  // Docker local setup - use backend service name or host networking
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    // Local Docker setup - backend runs on host port 8000
-    return 'ws://localhost:8000/ws/checkins/';
-  }
+  // For production, always use nginx proxy on standard ports (80/443)
+  // regardless of which port the frontend is accessed from
+  const baseUrl = `${protocol}//${hostname}`;
   
-  // Production environment with specific IP
-  if (hostname === '46.101.193.107' || hostname.includes('46.101.193.107')) {
-    return 'ws://46.101.193.107:8000/ws/checkins/';
-  }
+  // Don't add any port - always use nginx proxy on standard ports
+  // This ensures WebSocket goes through nginx even if frontend is on port 3000
   
-  // Default to current host with backend port for Docker environments
-  return `ws://${hostname}:8000/ws/checkins/`;
+  // WebSocket path through nginx proxy
+  return `${baseUrl}/ws/checkins/`;
 };
 
 // Create a singleton instance

@@ -12,11 +12,13 @@ import django
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
-from checkins.consumers import JWTAuthMiddleware
-import checkins.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gymapp.settings')
 django.setup()  # Initialize Django ASGI application early to ensure apps are loaded
+
+# Import after Django setup to avoid circular imports
+from checkins.consumers import JWTAuthMiddleware
+import checkins.routing
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),

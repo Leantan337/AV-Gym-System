@@ -3,7 +3,7 @@
  * Handles input sanitization, XSS protection, and other security concerns
  */
 
-import DOMPurify from 'dompurify';
+import * as DOMPurify from 'dompurify';
 import { AxiosRequestConfig } from 'axios';
 
 /**
@@ -110,13 +110,14 @@ export const escapeSpecialChars = (text: string): string => {
 export const generateCSP = (): string => {
   // Define CSP directives for production
   if (process.env.NODE_ENV === 'production') {
+    const hostname = window.location.hostname;
     return `
       default-src 'self';
       script-src 'self' 'unsafe-inline';
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' data: https:;
       font-src 'self' https://fonts.gstatic.com;
-      connect-src 'self' ${process.env.REACT_APP_API_HOST || ''};
+      connect-src 'self' https://${hostname} http://${hostname} ws://${hostname} wss://${hostname} ${process.env.REACT_APP_API_HOST || ''};
       frame-src 'none';
       object-src 'none';
     `.replace(/\s+/g, ' ').trim();

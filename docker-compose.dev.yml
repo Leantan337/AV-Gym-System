@@ -1,0 +1,102 @@
+version: '3.7'
+
+services:
+  # PostgreSQL (same as production)
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: gymapp
+      POSTGRES_USER: gymapp_user
+      POSTGRES_PASSWORD: gymapp_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  # Redis (same as production)
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # Django Web Service with HOT-RELOAD
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env.unified
+    environment:
+      - DJANGO_SETTINGS_MODULE=gymapp.settings
+      - DJANGO_DEBUG=True
+    volumes:
+      - .:/app  # Mount source code for hot-reload
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo '🔄 Starting Django with hot-reload for WebSocket development...' &&
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        echo '🚀 Starting Daphne with auto-reload...' &&
+        watchmedo auto-restart --patterns='*.py' --recursive --
+        daphne -b 0.0.0.0 -p 8000 --access-log - --proxy-headers gymapp.asgi:application
+      "
+
+  # Frontend with HOT-RELOAD
+  frontend:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile.dev
+      args:
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:8000}
+        REACT_APP_API_HOST: ${REACT_APP_API_HOST:-localhost:8000}
+        NODE_ENV: development
+    volumes:
+      - ./admin-frontend:/app  # Mount source code for hot-reload
+      - /app/node_modules     # Prevent overwriting node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - FAST_REFRESH=true
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  # Nginx for development
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_files:/app/staticfiles:ro
+      - media_files:/app/media:ro
+    depends_on:
+      - web
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  media_files:
+    driver: local
+  static_files:
+    driver: local
+
+networks:
+  default:
+    driver: bridge 
