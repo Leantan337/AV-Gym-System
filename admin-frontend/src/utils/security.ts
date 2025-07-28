@@ -3,7 +3,7 @@
  * Handles input sanitization, XSS protection, and other security concerns
  */
 
-import * as DOMPurify from 'dompurify';
+import DOMPurify from 'dompurify';
 import { AxiosRequestConfig } from 'axios';
 
 /**

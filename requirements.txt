@@ -22,8 +22,6 @@ flower==2.0.1
 # WSGI Server
 gunicorn==21.2.0
 
-# Security
-django-csp==4.0.0
 
 # Media & File Processing
 Pillow>=10.1.0
@@ -49,4 +47,6 @@ python-decouple>=3.6
 whitenoise>=6.4.0
 
 # Monitoring
+
 sentry-sdk>=1.15.0
+django-csp==0.0.0
