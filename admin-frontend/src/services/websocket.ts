@@ -967,6 +967,15 @@ class MessageBatcher {
 
 // Determine WebSocket URL based on environment - Always use nginx proxy
 const getWebSocketUrl = () => {
+  // Check if we have a specific WebSocket URL from environment
+  const envWsUrl = process.env.REACT_APP_WS_URL;
+  
+  if (envWsUrl) {
+    // Use the environment variable if available
+    return `${envWsUrl}/ws/checkins/`;
+  }
+  
+  // Fallback to dynamic construction based on current location
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const hostname = window.location.hostname;
   
