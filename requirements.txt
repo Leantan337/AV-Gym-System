@@ -47,5 +47,6 @@ python-decouple>=3.6
 whitenoise>=6.4.0
 
 # Monitoring
-sentry-sdk>=1.15.0# Exclude django-csp to prevent CSP conflicts
+# Exclude django-csp to prevent CSP conflicts
+sentry-sdk>=1.15.0
 django-csp==0.0.0
