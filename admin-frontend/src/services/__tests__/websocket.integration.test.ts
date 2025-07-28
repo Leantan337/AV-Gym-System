@@ -283,7 +283,9 @@ describe('WebSocket Service Integration Tests', () => {
     });
 
     it('should handle malformed messages gracefully', (done: jest.DoneCallback) => {
-      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        // Mock console.error implementation
+      });
 
       // Simulate malformed message
       if (mockWebSocket.onmessage) {

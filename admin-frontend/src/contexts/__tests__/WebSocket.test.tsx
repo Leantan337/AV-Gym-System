@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { WebSocketProvider, useWebSocket } from '../WebSocketContext';
 import { CheckInProvider, useCheckIn } from '../CheckInContext';
@@ -87,7 +88,9 @@ describe('WebSocket Integration Tests', () => {
     jest.clearAllMocks();
     mockWsService.getConnectionStatus.mockReturnValue('disconnected');
     mockWsService.getAuthToken.mockReturnValue(null);
-    mockWsService.subscribe.mockReturnValue(() => {});
+    mockWsService.subscribe.mockReturnValue(() => {
+      // Mock unsubscribe function
+    });
     mockWsService.send.mockResolvedValue();
   });
 
@@ -110,7 +113,9 @@ describe('WebSocket Integration Tests', () => {
         if (event === 'connection_status') {
           statusHandler = handler;
         }
-        return () => {};
+        return () => {
+          // Mock unsubscribe function
+        };
       });
 
       render(
@@ -147,10 +152,8 @@ describe('WebSocket Integration Tests', () => {
       });
     });
 
-    it('should handle authentication token updates', () => {
-      const mockToken = 'test-jwt-token';
-      
-      render(
+          it('should handle authentication token updates', () => {
+        render(
         <TestWrapper>
           <TestComponent />
         </TestWrapper>
@@ -230,7 +233,9 @@ describe('WebSocket Integration Tests', () => {
         if (event === 'check_in_update') {
           checkInHandler = handler;
         }
-        return () => {};
+        return () => {
+          // Mock unsubscribe function
+        };
       });
 
       render(
