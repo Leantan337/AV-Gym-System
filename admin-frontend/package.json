@@ -29,7 +29,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' react-scripts build",
+    "build:prod": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
@@ -37,7 +38,7 @@
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
     "pre-build": "npm run lint && npm run type-check",
-    "build:safe": "npm run pre-build && npm run build"
+    "build:safe": "npm run pre-build && npm run build:prod"
   },
   "eslintConfig": {
     "extends": [

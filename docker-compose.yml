@@ -132,6 +132,8 @@ services:
       args:
         REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://46.101.193.107:8000}
         REACT_APP_API_HOST: ${REACT_APP_API_HOST:-46.101.193.107:8000}
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://46.101.193.107:8000}
+        REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://46.101.193.107:8000}
         NODE_ENV: production
     env_file:
       - .env.unified
@@ -145,14 +147,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M  # Increased from 32M
-          cpus: '0.5'   # Increased from 0.25
+          memory: 256M  # Increased for build performance
+          cpus: '1.0'   # Increased for build performance
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
       interval: 30s    # More frequent checks
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 45s  # Increased to allow for build completion
 
   # Nginx with better resources
   nginx:
