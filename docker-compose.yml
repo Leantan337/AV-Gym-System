@@ -53,7 +53,7 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env.unified
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=gymapp.settings
     volumes:
@@ -84,7 +84,7 @@ services:
       dockerfile: Dockerfile
     command: celery -A gymapp worker --loglevel=info --concurrency=2 --prefetch-multiplier=2 --max-tasks-per-child=200 --without-gossip --without-mingle
     env_file:
-      - .env.unified
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=gymapp.settings
     volumes:
@@ -107,7 +107,7 @@ services:
       dockerfile: Dockerfile
     command: celery -A gymapp beat --loglevel=info --max-interval=300
     env_file:
-      - .env.unified
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=gymapp.settings
     volumes:
@@ -135,7 +135,7 @@ services:
         REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://46.101.193.107:8000}
         NODE_ENV: production
     env_file:
-      - .env.unified
+      - .env
     ports:
       - "3000:80"
     environment:
