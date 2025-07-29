@@ -132,6 +132,7 @@ services:
       args:
         REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://46.101.193.107:8000}
         REACT_APP_API_HOST: ${REACT_APP_API_HOST:-46.101.193.107:8000}
+        REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://46.101.193.107:8000}
         NODE_ENV: production
     env_file:
       - .env.unified

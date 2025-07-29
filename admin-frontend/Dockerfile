@@ -8,10 +8,12 @@ WORKDIR /app
 # Accept build arguments for React environment variables
 ARG REACT_APP_API_BASE_URL
 ARG REACT_APP_API_HOST
+ARG REACT_APP_WS_URL
 
 # Set environment variables from build args
 ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 ENV REACT_APP_API_HOST=$REACT_APP_API_HOST
+ENV REACT_APP_WS_URL=$REACT_APP_WS_URL
 
 # Copy package files first for better caching
 COPY package*.json ./
