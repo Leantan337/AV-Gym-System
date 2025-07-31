@@ -12,6 +12,7 @@ from .serializers import CheckInSerializer
 from rest_framework.views import APIView
 from datetime import timedelta
 from django.core.paginator import Paginator
+from rest_framework.views import APIView
 
 
 class CheckInViewSet(viewsets.ModelViewSet):
@@ -67,6 +68,17 @@ class CheckInViewSet(viewsets.ModelViewSet):
         checkin.check_out_time = timezone.now()
         checkin.save()
         serializer = self.get_serializer(checkin)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def recent(self, request):
+        """Get recent check-ins for the last 24 hours"""
+        recent_checkins = (
+            CheckIn.objects.filter(check_in_time__gte=timezone.now() - timedelta(hours=24))
+            .select_related('member')
+            .order_by('-check_in_time')[:20]
+        )
+        serializer = CheckInSerializer(recent_checkins, many=True)
         return Response(serializer.data)
 
     queryset = CheckIn.objects.all()

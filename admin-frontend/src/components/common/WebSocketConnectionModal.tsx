@@ -43,7 +43,8 @@ const WebSocketConnectionModal: React.FC = () => {
       if (!userCancelled) {
         console.debug('Status is disconnected/failed and not user cancelled, setting disconnect timer...');
         disconnectTimerRef.current = setTimeout(() => {
-          console.debug('Disconnect timer fired, setting open(true)');
+          // Double-check connection status before showing modal
+          console.debug('Disconnect timer fired, checking current status:', connectionStatus);
           setOpen(true);
           setAttempting(false); // Not attempting automatically when first disconnected
           setAttemptCount(0); // Reset attempt count when disconnected
@@ -60,9 +61,9 @@ const WebSocketConnectionModal: React.FC = () => {
         if (attempting) {
           closeTimeoutRef.current = setTimeout(() => {
             setOpen(false);
-          }, 1500); // Show success for 1.5 seconds
+          }, 1000); // Reduced from 1.5s to 1s for faster closing
         } else {
-           setOpen(false);
+           setOpen(false); // Close immediately if not attempting
         }
       }
       // Reset attempting and userCancelled flags
@@ -97,18 +98,18 @@ const WebSocketConnectionModal: React.FC = () => {
   // Force ability to close the dialog if it's been open too long
   useEffect(() => {
     if (open) {
-      // Allow closing the dialog after 30 seconds no matter what
+      // Allow closing the dialog after 10 seconds instead of 30 for better UX
       const forceCloseTimer = setTimeout(() => {
-        if (open) {
-          console.log('Forcing WebSocket dialog close after timeout');
+        if (open && connectionStatus === 'connected') {
+          console.log('Forcing WebSocket dialog close after timeout - connection is stable');
           setOpen(false);
           setAttempting(false);
         }
-      }, 30000);
+      }, 10000); // Reduced from 30s to 10s
       
       return () => clearTimeout(forceCloseTimer);
     }
-  }, [open]);
+  }, [open, connectionStatus]);
 
   const handleCancel = () => {
     console.debug('handleCancel called', { connectionStatus, open, userCancelled, attempting, attemptCount });

@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfribidi0 \
     libxcb1 \
     curl \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && apt-get autoremove -y
@@ -66,18 +67,27 @@ WORKDIR /app
 # Copy application files
 COPY --chown=appuser:appuser . .
 
+# Copy and set permissions for entrypoint
+COPY --chown=appuser:appuser entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Ensure appuser owns /app
 RUN chown -R appuser:appuser /app
 
-# Create necessary directories and collect static files
-RUN mkdir -p /app/media /app/staticfiles \
-    && python manage.py collectstatic --noinput
+# Create necessary directories (collectstatic moved to entrypoint)
+RUN mkdir -p /app/media /app/staticfiles
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:8000/health/ || exit 1
+
+# Use entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
 
 # ASGI server for WebSocket support - using Daphne
 CMD ["daphne", \

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { List, ListItem, ListItemText, Typography, Paper, Divider, Chip } from '@mui/material';
 import { useCheckIn, CheckIn } from '../../hooks/useCheckIn';
+import { api } from '../../services/api'; // Add this import
 
 export const CheckInList: React.FC = () => {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -9,11 +10,9 @@ export const CheckInList: React.FC = () => {
   useEffect(() => {
     const loadRecentCheckIns = async () => {
       try {
-        const response = await fetch('/api/checkins/recent/');
-        if (response.ok) {
-          const data = await response.json();
-          setCheckIns(data);
-        }
+        // ✅ Use API service instead of raw fetch
+        const response = await api.get('/checkins/recent/');
+        setCheckIns(response.data);
       } catch (error) {
         console.error('Failed to load recent check-ins:', error);
       }
@@ -21,7 +20,6 @@ export const CheckInList: React.FC = () => {
     
     loadRecentCheckIns();
     
-    // Now this will work correctly with proper typing
     const unsubscribe = onCheckIn((newCheckIn: CheckIn) => {
       setCheckIns(prev => [newCheckIn, ...prev].slice(0, 20));
     });

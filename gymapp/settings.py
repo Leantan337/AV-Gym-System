@@ -18,7 +18,7 @@ SECRET_KEY = config('SECRET_KEY', default="django-insecure-eu+ojy^1m_p3+$j-b8(=d
 DEBUG = config('DEBUG', default=True, cast=bool)
 
 # Updated to use environment variables
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')
 
 # Application definition
 INSTALLED_APPS = [

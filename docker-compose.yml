@@ -52,6 +52,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
+    image: gymapp-django:latest
     env_file:
       - .env
     environment:
@@ -79,9 +80,7 @@ services:
 
   # Celery Worker with better concurrency
   celery:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: gymapp-django:latest
     command: celery -A gymapp worker --loglevel=info --concurrency=2 --prefetch-multiplier=2 --max-tasks-per-child=200 --without-gossip --without-mingle
     env_file:
       - .env
@@ -102,9 +101,7 @@ services:
 
   # Celery Beat with more resources
   celery-beat:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: gymapp-django:latest
     command: celery -A gymapp beat --loglevel=info --max-interval=300
     env_file:
       - .env

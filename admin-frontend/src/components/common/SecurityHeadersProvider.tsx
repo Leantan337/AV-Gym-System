@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { generateCSP } from '../../utils/security';
+// import { generateCSP } from '../../utils/security'; // Temporarily disabled
 
 /**
  * Component to inject security headers as meta tags
@@ -7,7 +7,9 @@ import { generateCSP } from '../../utils/security';
  */
 const SecurityHeadersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
-    // Add Content Security Policy
+    // TEMPORARILY DISABLED: Content Security Policy
+    // Let nginx handle CSP instead of frontend
+    /*
     const cspContent = generateCSP();
     let cspMeta = document.getElementById('csp-meta') as HTMLMetaElement | null;
     
@@ -19,6 +21,7 @@ const SecurityHeadersProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     
     cspMeta.content = cspContent;
+    */
     
     // X-Frame-Options is now handled by Django's XFrameOptionsMiddleware
     // X-XSS-Protection meta tag
@@ -54,9 +57,11 @@ const SecurityHeadersProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => {
       // Cleanup not strictly necessary since this is a root component,
       // but included for completeness
+      /*
       if (cspMeta?.parentNode) {
         cspMeta.parentNode.removeChild(cspMeta);
       }
+      */
       if (xssProtectionMeta?.parentNode) {
         xssProtectionMeta.parentNode.removeChild(xssProtectionMeta);
       }
