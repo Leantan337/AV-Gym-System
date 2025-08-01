@@ -53,7 +53,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'csp.middleware.CSPMiddleware',
+    # 'csp.middleware.CSPMiddleware',  # Temporarily disabled until CSP is properly configured
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -65,7 +65,7 @@ MIDDLEWARE = [
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access to CSRF cookie
 CSRF_COOKIE_SAMESITE = 'Lax'  # Allows CSRF cookie to be sent in same-site requests
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:3000,https://localhost:3000,http://127.0.0.1:3000,https://127.0.0.1:3000,http://localhost:8000,https://localhost:8000,http://127.0.0.1:8000,https://127.0.0.1:8000,http://46.101.193.107:3000,http://46.101.193.107:8000').split(',')
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:3000,https://localhost:3000,http://127.0.0.1:3000,https://127.0.0.1:3000,http://localhost:8000,https://localhost:8000,http://127.0.0.1:8000,https://127.0.0.1:8000,http://46.101.193.107:3000,https://46.101.193.107:3000,http://46.101.193.107:8000,https://46.101.193.107:8000').split(',')
 
 ROOT_URLCONF = "gymapp.urls"
 
