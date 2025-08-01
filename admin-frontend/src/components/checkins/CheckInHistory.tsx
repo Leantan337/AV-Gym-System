@@ -35,7 +35,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { checkOutMember } from '../../services/api';
 import { format, formatDistance } from 'date-fns';
 import { useWebSocket } from '../../contexts/WebSocketContext';
-import { CheckInWebSocketEvent } from '../../services/websocket';
 
 interface CheckIn {
   id: string;
@@ -85,20 +84,25 @@ export const CheckInHistory: React.FC<CheckInHistoryProps> = ({
 
   // Handle real-time updates
   useEffect(() => {
-    const unsubscribe = subscribe<CheckInWebSocketEvent>('check_in_update', (event) => {
+    // Subscribe to member check-in events
+    const unsubscribeCheckIn = subscribe('member_checked_in', (checkIn: CheckIn) => {
       queryClient.setQueryData(['checkIns'], (old: CheckIn[] = []) => {
-        if (event.type === 'check_in') {
-          return [event.checkIn, ...old];
-        } else {
-          return old.map(item => 
-            item.id === event.checkIn.id ? event.checkIn : item
-          );
-        }
+        return [checkIn, ...old];
+      });
+    });
+
+    // Subscribe to member check-out events  
+    const unsubscribeCheckOut = subscribe('member_checked_out', (checkOut: CheckIn) => {
+      queryClient.setQueryData(['checkIns'], (old: CheckIn[] = []) => {
+        return old.map(item => 
+          item.id === checkOut.id ? checkOut : item
+        );
       });
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeCheckIn();
+      unsubscribeCheckOut();
     };
   }, [queryClient, subscribe]);
 

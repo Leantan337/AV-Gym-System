@@ -29,8 +29,8 @@ export const CheckInStatus: React.FC = () => {
   const stats = initialStats !== null ? initialStats : polledStats;
 
   useEffect(() => {
-    // Subscribe to check-in updates
-    const unsubscribeCheckIn = subscribe<CheckInStats>('check_in_update', (data) => {
+    // Subscribe to real-time stats updates
+    const unsubscribeStats = subscribe<CheckInStats>('stats_update', (data) => {
       queryClient.setQueryData(['checkInStats'], data);
       setLastUpdate(new Date());
     });
@@ -47,7 +47,7 @@ export const CheckInStatus: React.FC = () => {
 
     // Cleanup on unmount
     return () => {
-      unsubscribeCheckIn();
+      unsubscribeStats();
       unsubscribeStatus();
     };
   }, [queryClient, refetch, subscribe, connectionStatus, initialStats]);

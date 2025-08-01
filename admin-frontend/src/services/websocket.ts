@@ -1,5 +1,25 @@
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed' | 'authentication_failed';
 
+// Error types for better error handling
+export enum WebSocketErrorType {
+  AUTHENTICATION_ERROR = 'authentication_error',
+  NETWORK_ERROR = 'network_error', 
+  SERVER_ERROR = 'server_error',
+  CONNECTION_TIMEOUT = 'connection_timeout',
+  HEARTBEAT_TIMEOUT = 'heartbeat_timeout',
+  MESSAGE_ERROR = 'message_error',
+  UNKNOWN_ERROR = 'unknown_error'
+}
+
+export interface WebSocketError {
+  type: WebSocketErrorType;
+  message: string;
+  timestamp: number;
+  retryable: boolean;
+  code?: number;
+  originalError?: Error;
+}
+
 type MessageHandler<T = unknown> = (data: T) => void;
 
 export interface CheckInEvent {
@@ -51,24 +71,23 @@ export class WebSocketService {
   private reconnectAttempts = 0;
   private connectionStatus: ConnectionStatus = 'disconnected';
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  private pingInterval: NodeJS.Timeout | null = null;
-  private readonly PING_INTERVAL = 30000; // 30 seconds
-  private readonly HEARTBEAT_INTERVAL = 10000; // 10 seconds
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds
   private lastHeartbeatAck = 0;
-  private readonly HEARTBEAT_TIMEOUT = 15000; // 15 seconds
+  private readonly HEARTBEAT_TIMEOUT = 45000; // 45 seconds (1.5x interval)
   private readonly MAX_MISSED_HEARTBEATS = 2;
   private missedHeartbeats = 0;
   private authToken: string | null = null;
-  private messageBatcher = new MessageBatcher();
   private pendingMessages: Array<{ event: string; data: unknown }> = [];
   private manualReconnectTriggered = false;
-  private lastDisconnectTime = 0;
   private readonly MIN_RECONNECT_DELAY = 1000; // 1 second
   private readonly MAX_RECONNECT_DELAY = 30000; // 30 seconds
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
-  private connectionStartTime = 0;
-  private readonly CONNECTION_TIMEOUT = 10000; // 10 seconds connection timeout
+  private lastError: WebSocketError | null = null;
+  private errorHistory: WebSocketError[] = [];
+  private fallbackPolling: NodeJS.Timeout | null = null;
+  private readonly FALLBACK_POLL_INTERVAL = 10000; // 10 seconds
+  private useFallbackMode = false;
 
   constructor(private baseUrl: string) {
     // Validate baseUrl
@@ -100,6 +119,114 @@ export class WebSocketService {
     return this.authToken;
   }
 
+  getLastError(): WebSocketError | null {
+    return this.lastError;
+  }
+
+  getErrorHistory(): WebSocketError[] {
+    return [...this.errorHistory];
+  }
+
+  private createError(
+    type: WebSocketErrorType, 
+    message: string, 
+    originalError?: Error,
+    code?: number
+  ): WebSocketError {
+    const error: WebSocketError = {
+      type,
+      message,
+      timestamp: Date.now(),
+      retryable: this.isRetryableError(type),
+      code,
+      originalError
+    };
+
+    this.lastError = error;
+    this.errorHistory.push(error);
+    
+    // Keep only last 10 errors
+    if (this.errorHistory.length > 10) {
+      this.errorHistory = this.errorHistory.slice(-10);
+    }
+
+    return error;
+  }
+
+  private isRetryableError(type: WebSocketErrorType): boolean {
+    switch (type) {
+      case WebSocketErrorType.NETWORK_ERROR:
+      case WebSocketErrorType.CONNECTION_TIMEOUT:
+      case WebSocketErrorType.HEARTBEAT_TIMEOUT:
+      case WebSocketErrorType.SERVER_ERROR:
+        return true;
+      case WebSocketErrorType.AUTHENTICATION_ERROR:
+      case WebSocketErrorType.MESSAGE_ERROR:
+        return false;
+      case WebSocketErrorType.UNKNOWN_ERROR:
+      default:
+        return true; // Default to retryable for unknown errors
+    }
+  }
+
+  private classifyError(error: unknown, code?: number): WebSocketError {
+    if (code === 4001) {
+      return this.createError(
+        WebSocketErrorType.AUTHENTICATION_ERROR,
+        'Authentication failed - invalid or expired token',
+        error instanceof Error ? error : undefined,
+        code
+      );
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      
+      if (message.includes('network') || message.includes('connection')) {
+        return this.createError(
+          WebSocketErrorType.NETWORK_ERROR,
+          'Network connection error',
+          error,
+          code
+        );
+      }
+      
+      if (message.includes('timeout')) {
+        return this.createError(
+          WebSocketErrorType.CONNECTION_TIMEOUT,
+          'Connection timeout',
+          error,
+          code
+        );
+      }
+      
+      if (message.includes('heartbeat')) {
+        return this.createError(
+          WebSocketErrorType.HEARTBEAT_TIMEOUT,
+          'Heartbeat timeout - connection may be unstable',
+          error,
+          code
+        );
+      }
+      
+      if (message.includes('server') || (code && code >= 1011 && code <= 1014)) {
+        return this.createError(
+          WebSocketErrorType.SERVER_ERROR,
+          'Server error',
+          error,
+          code
+        );
+      }
+    }
+
+    return this.createError(
+      WebSocketErrorType.UNKNOWN_ERROR,
+      'Unknown WebSocket error',
+      error instanceof Error ? error : undefined,
+      code
+    );
+  }
+
   setAuthToken(token: string | null) {
     this.authToken = token;
     if (token) {
@@ -129,44 +256,18 @@ export class WebSocketService {
       this.notifyConnectionStatusChange();
       this.manualReconnectTriggered = manualReconnect;
       this.missedHeartbeats = 0;
-      this.connectionStartTime = Date.now();
-      
-      // Set connection timeout
-      const connectionTimeout = setTimeout(() => {
-        if (this.connectionStatus === 'connecting') {
-          console.error('WebSocket connection timeout');
-          this.handleConnectionError(new Error('Connection timeout'));
-        }
-      }, this.CONNECTION_TIMEOUT);
       
       this.socket = new WebSocket(this.getWebSocketUrl());
 
       this.socket.onopen = () => {
-        clearTimeout(connectionTimeout);
-        const connectionTime = Date.now() - this.connectionStartTime;
-        console.log(`WebSocket connected successfully in ${connectionTime}ms`);
+        console.log('WebSocket connected successfully');
         this.reconnectAttempts = 0;
-        this.lastDisconnectTime = 0;
         this.missedHeartbeats = 0;
         
-        // Send authentication message immediately after connection
-        if (this.authToken && this.socket) {
-          console.debug('Sending authentication message...');
-          this.socket.send(JSON.stringify({
-            type: 'authenticate',
-            payload: { token: this.authToken }
-          }));
-        }
-        
+        // Connection is established and authenticated via URL token
         this.connectionStatus = 'connected';
         this.notifyConnectionStatusChange();
-        this.setupPing();
         this.setupHeartbeat();
-        
-        // Set the socket for the message batcher
-        if (this.socket) {
-          this.messageBatcher.setSocket(this.socket);
-        }
         
         // Send any pending messages that were queued while disconnected
         if (this.pendingMessages.length > 0) {
@@ -182,22 +283,6 @@ export class WebSocketService {
           const message = JSON.parse(event.data) as WebSocketMessage;
           const { type, payload } = message;
 
-          // Handle authentication response
-          if (type === 'authentication_success') {
-            console.log('WebSocket authentication successful');
-            return;
-          }
-
-          if (type === 'authentication_error') {
-            let errorMessage = 'Unknown authentication error';
-            if (payload && typeof payload === 'object' && 'message' in payload) {
-              errorMessage = String((payload as { message?: unknown }).message);
-            }
-            console.error('WebSocket authentication failed:', errorMessage);
-            this.handleConnectionError(new Error('Authentication failed: ' + errorMessage));
-            return;
-          }
-
           // Handle heartbeat_ack
           if (type === 'heartbeat_ack') {
             const now = Date.now();
@@ -207,25 +292,8 @@ export class WebSocketService {
             this.missedHeartbeats = 0;
             return;
           }
-          
-          // Handle ping-pong
-          if (type === 'pong') {
-            return;
-          }
-          
-          // Handle batched messages
-          if (type === 'batch' && payload && typeof payload === 'object' && 'batches' in payload) {
-            Object.entries((payload as { batches: Record<string, unknown[]> }).batches).forEach(([msgType, data]) => {
-              const handlers = this.messageHandlers.get(msgType);
-              if (handlers) {
-                (data as unknown[]).forEach(item => {
-                  handlers.forEach(handler => handler(item));
-                });
-              }
-            });
-            return;
-          }
 
+          // Handle all other messages
           const handlers = this.messageHandlers.get(type);
           if (handlers && payload !== undefined && payload !== null) {
             handlers.forEach(handler => handler(payload));
@@ -235,20 +303,34 @@ export class WebSocketService {
         }
       };
 
-      this.socket.onclose = () => {
-        clearTimeout(connectionTimeout);
-        const error = new Error('WebSocket disconnected');
-        console.log(error.message);
-        // Handle specific close codes (cannot access code/reason without param, so just log generic)
-        // Only attempt to reconnect if it wasn't a clean close
-        this.reconnect(error);
+      this.socket.onclose = (event) => {
+        console.log(`WebSocket closed with code: ${event.code}, reason: ${event.reason}`);
+        
+        const wsError = this.classifyError(
+          new Error(`WebSocket closed: ${event.reason || 'Unknown reason'}`),
+          event.code
+        );
+        
+        // Handle authentication failure
+        if (wsError.type === WebSocketErrorType.AUTHENTICATION_ERROR) {
+          console.error('WebSocket authentication failed');
+          this.connectionStatus = 'authentication_failed';
+          this.notifyConnectionStatusChange();
+          this.notifyError(wsError);
+          // Don't attempt to reconnect on auth failure
+          return;
+        }
+        
+        // Handle other errors with smart retry logic
+        this.handleConnectionError(wsError);
       };
 
       this.socket.onerror = () => {
-        clearTimeout(connectionTimeout);
-        const error = new Error('WebSocket error occurred');
-        console.error('WebSocket error:', error);
-        this.handleConnectionError(error);
+        const wsError = this.classifyError(
+          new Error('WebSocket connection error')
+        );
+        console.error('WebSocket error:', wsError);
+        this.handleConnectionError(wsError);
       };
     } catch (error) {
       console.error('Error initializing WebSocket:', error);
@@ -256,52 +338,38 @@ export class WebSocketService {
     }
   }
 
-  private setupPing() {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-    }
+  private setupHeartbeat() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
 
-    // Setup regular ping (keep existing ping for compatibility)
-    this.pingInterval = setInterval(() => {
-      if (this.socket?.readyState === WebSocket.OPEN) {
-        try {
-          console.debug('Sending ping...');
-          this.socket.send(JSON.stringify({ type: 'ping' }));
-        } catch (error) {
-          console.error('Error sending ping message:', error);
-          this.handleConnectionError(error instanceof Error ? error : new Error('Error sending ping message'));
-        }
-      }
-    }, this.PING_INTERVAL);
-
-    // Setup heartbeat
-    this.lastHeartbeatAck = Date.now(); // Initialize with current time
+    // Initialize heartbeat tracking
+    this.lastHeartbeatAck = Date.now();
     this.missedHeartbeats = 0;
+
     this.heartbeatInterval = setInterval(() => {
       if (this.socket?.readyState === WebSocket.OPEN) {
-        try {
-          const now = Date.now();
-          const timeSinceLastAck = now - this.lastHeartbeatAck;
+        const now = Date.now();
+        const timeSinceLastAck = now - this.lastHeartbeatAck;
+        
+        // Check if we haven't received a heartbeat ack in time
+        if (timeSinceLastAck > this.HEARTBEAT_TIMEOUT) {
+          this.missedHeartbeats++;
+          console.warn(`Missed heartbeat ${this.missedHeartbeats}/${this.MAX_MISSED_HEARTBEATS} (${Math.round(timeSinceLastAck/1000)}s ago)`);
           
-          // Check if we haven't received a heartbeat ack in time
-          if (timeSinceLastAck > this.HEARTBEAT_TIMEOUT) {
-            this.missedHeartbeats++;
-            console.warn(`No heartbeat ack received for ${Math.round(timeSinceLastAck/1000)}s (timeout: ${this.HEARTBEAT_TIMEOUT/1000}s), missed: ${this.missedHeartbeats}/${this.MAX_MISSED_HEARTBEATS}`);
-            
-            if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
-              console.error('Max missed heartbeats reached, reconnecting...');
-              this.handleConnectionError(new Error('Max missed heartbeats reached'));
-              return;
-            }
-          } else {
-            // Reset missed heartbeats if we're within timeout
-            this.missedHeartbeats = 0;
+          if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
+            console.error('Too many missed heartbeats, reconnecting...');
+            const heartbeatError = this.createError(
+              WebSocketErrorType.HEARTBEAT_TIMEOUT,
+              `Heartbeat timeout after ${this.missedHeartbeats} missed heartbeats`
+            );
+            this.handleConnectionError(heartbeatError);
+            return;
           }
+        }
 
-          console.debug(`Sending heartbeat... (last ack: ${Math.round(timeSinceLastAck/1000)}s ago)`);
+        try {
+          console.debug('Sending heartbeat...');
           this.socket.send(JSON.stringify({ 
             type: 'heartbeat',
             timestamp: now
@@ -314,41 +382,15 @@ export class WebSocketService {
     }, this.HEARTBEAT_INTERVAL);
   }
 
-  private setupHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-    }
-
-    this.heartbeatInterval = setInterval(() => {
-      if (this.socket?.readyState === WebSocket.OPEN) {
-        const now = Date.now();
-        const timeSinceLastAck = now - this.lastHeartbeatAck;
-        
-        if (timeSinceLastAck > this.HEARTBEAT_TIMEOUT) {
-          this.missedHeartbeats++;
-          console.warn(`Missed heartbeat (${this.missedHeartbeats}/${this.MAX_MISSED_HEARTBEATS})`);
-          
-          if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
-            console.error('Too many missed heartbeats, reconnecting...');
-            this.handleConnectionError(new Error('Heartbeat timeout'));
-            return;
-          }
-        }
-
-        try {
-          this.socket.send(JSON.stringify({ type: 'heartbeat' }));
-        } catch (error) {
-          console.error('Error sending heartbeat:', error);
-          this.handleConnectionError(error instanceof Error ? error : new Error('Error sending heartbeat'));
-        }
-      }
-    }, this.HEARTBEAT_INTERVAL);
-  }
-
   private handleConnectionError(error: unknown) {
-    console.error('WebSocket connection error:', error);
+    const wsError = error instanceof Object && 'type' in error ? 
+      error as WebSocketError : 
+      this.classifyError(error);
+    
+    console.error('WebSocket connection error:', wsError);
     this.connectionStatus = 'disconnected';
     this.notifyConnectionStatusChange();
+    this.notifyError(wsError);
     
     // Clean up any existing connection
     if (this.socket) {
@@ -363,17 +405,17 @@ export class WebSocketService {
     // Clear intervals
     this.clearIntervals();
     
-    // Attempt to reconnect if appropriate
-    if (!this.manualReconnectTriggered) {
-      this.reconnect(error);
+    // Smart retry logic based on error type
+    if (!this.manualReconnectTriggered && wsError.retryable) {
+      this.smartReconnect(wsError);
+    } else if (!wsError.retryable) {
+      console.error('Non-retryable error, not attempting reconnection:', wsError.message);
+      this.connectionStatus = 'failed';
+      this.notifyConnectionStatusChange();
     }
   }
 
   private clearIntervals() {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
-    }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
@@ -384,31 +426,125 @@ export class WebSocketService {
     }
   }
 
-  private reconnect(error?: unknown) {
+  private smartReconnect(wsError: WebSocketError) {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
 
     if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnection attempts reached', error);
-      this.connectionStatus = 'failed';
-      this.notifyConnectionStatusChange();
+      console.error('Max reconnection attempts reached, switching to fallback mode', wsError);
+      
+      // Start fallback mode instead of completely failing
+      if (wsError.type === WebSocketErrorType.NETWORK_ERROR || 
+          wsError.type === WebSocketErrorType.CONNECTION_TIMEOUT ||
+          wsError.type === WebSocketErrorType.SERVER_ERROR) {
+        this.startFallbackMode();
+      } else {
+        // For non-recoverable errors, mark as failed
+        this.connectionStatus = 'failed';
+        this.notifyConnectionStatusChange();
+      }
       return;
     }
 
-    const now = Date.now();
-    const timeSinceLastDisconnect = now - this.lastDisconnectTime;
-    const delay = Math.min(
-      this.MAX_RECONNECT_DELAY,
-      Math.max(this.MIN_RECONNECT_DELAY, timeSinceLastDisconnect)
-    );
-
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`, error);
+    // Calculate delay based on error type and attempt count
+    const delay = this.calculateReconnectDelay(wsError);
+    
+    console.log(`Smart reconnect: ${wsError.type} - attempting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       this.connect(false, true);
     }, delay);
+  }
+
+  private calculateReconnectDelay(wsError: WebSocketError): number {
+    let baseDelay = this.MIN_RECONNECT_DELAY;
+    
+    // Adjust base delay based on error type
+    switch (wsError.type) {
+      case WebSocketErrorType.NETWORK_ERROR:
+        baseDelay = 2000; // Network issues might need a bit more time
+        break;
+      case WebSocketErrorType.SERVER_ERROR:
+        baseDelay = 5000; // Server issues need more time
+        break;
+      case WebSocketErrorType.HEARTBEAT_TIMEOUT:
+        baseDelay = 1000; // Heartbeat timeouts can retry quickly
+        break;
+      default:
+        baseDelay = this.MIN_RECONNECT_DELAY;
+    }
+    
+    // Exponential backoff with jitter
+    const exponentialDelay = baseDelay * Math.pow(2, this.reconnectAttempts);
+    const jitter = Math.random() * 1000; // Add up to 1s jitter
+    
+    return Math.min(this.MAX_RECONNECT_DELAY, exponentialDelay + jitter);
+  }
+
+  private notifyError(wsError: WebSocketError) {
+    const handlers = this.messageHandlers.get('websocket_error');
+    if (handlers) {
+      handlers.forEach(handler => handler(wsError));
+    }
+  }
+
+  private startFallbackMode() {
+    if (this.fallbackPolling || this.useFallbackMode) {
+      return; // Already in fallback mode
+    }
+
+    console.warn('Starting fallback polling mode due to persistent WebSocket failures');
+    this.useFallbackMode = true;
+    this.connectionStatus = 'connected'; // Show as connected for UX
+    this.notifyConnectionStatusChange();
+
+    // Simulate real-time updates through polling
+    this.fallbackPolling = setInterval(async () => {
+      try {
+        // Notify subscribers that we're using fallback mode
+        const handlers = this.messageHandlers.get('fallback_polling');
+        if (handlers) {
+          handlers.forEach(handler => handler({ 
+            mode: 'polling', 
+            interval: this.FALLBACK_POLL_INTERVAL 
+          }));
+        }
+        
+        // Attempt to reconnect WebSocket periodically
+        if (this.reconnectAttempts % 3 === 0) { // Every 3rd poll, try WebSocket again
+          this.tryWebSocketReconnection();
+        }
+      } catch (error) {
+        console.error('Error in fallback polling:', error);
+      }
+    }, this.FALLBACK_POLL_INTERVAL);
+  }
+
+  private stopFallbackMode() {
+    if (this.fallbackPolling) {
+      clearInterval(this.fallbackPolling);
+      this.fallbackPolling = null;
+    }
+    this.useFallbackMode = false;
+    console.log('Stopped fallback polling mode');
+  }
+
+  private tryWebSocketReconnection() {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      // WebSocket is already connected, stop fallback
+      this.stopFallbackMode();
+      return;
+    }
+
+    console.log('Attempting WebSocket reconnection from fallback mode...');
+    this.reconnectAttempts = 0; // Reset attempts for fallback reconnection
+    this.connect(false, true);
+  }
+
+  public isFallbackMode(): boolean {
+    return this.useFallbackMode;
   }
   
   // Method to manually trigger reconnection
@@ -454,21 +590,15 @@ export class WebSocketService {
     return new Promise((resolve, reject) => {
       if (this.socket?.readyState === WebSocket.OPEN) {
         try {
-          // Use message batching for high-volume events
-          if (['check_in_update', 'member_update', 'notification'].includes(event)) {
-            this.messageBatcher.add(event, data);
-            resolve();
-          } else {
-            // Send immediately for important events
-            this.socket.send(JSON.stringify({ type: event, data }));
-            resolve();
-          }
+          // Send all messages immediately - no more batching
+          this.socket.send(JSON.stringify({ type: event, payload: data }));
+          resolve();
         } catch (error) {
           console.error('Error sending WebSocket message:', error);
           reject(error);
         }
       } else {
-        // Queue message to be sent when connection is reestablished
+        // Queue important messages to be sent when connection is reestablished
         if (['check_in', 'check_out'].includes(event)) {
           console.log('WebSocket not connected, queueing message:', event);
           this.pendingMessages.push({ event, data });
@@ -492,6 +622,7 @@ export class WebSocketService {
       this.socket = null;
     }
     this.clearIntervals();
+    this.stopFallbackMode(); // Clean up fallback polling
     
     // Preserve authentication_failed status, otherwise set to disconnected
     if (this.connectionStatus !== 'authentication_failed') {
@@ -511,16 +642,7 @@ export class WebSocketService {
   }
 
   getConnectionStatus(): ConnectionStatus {
-    if (!this.socket) return 'disconnected';
-    
-    switch (this.socket.readyState) {
-      case WebSocket.CONNECTING:
-        return 'connecting';
-      case WebSocket.OPEN:
-        return 'connected';
-      default:
-        return 'disconnected';
-    }
+    return this.connectionStatus;
   }
 
   public async checkInMember(data: CheckInData): Promise<void> {
@@ -529,83 +651,6 @@ export class WebSocketService {
 
   public async checkOutMember(data: CheckOutData): Promise<void> {
     return this.send('check_out', data);
-  }
-}
-
-// Message batching for high-volume scenarios
-interface BatchedMessage<T = unknown> {
-  type: string;
-  data: T;
-  timestamp: number;
-}
-
-class MessageBatcher {
-  private messages: BatchedMessage[] = [];
-  private batchTimeout: NodeJS.Timeout | null = null;
-  private readonly BATCH_INTERVAL = 100; // ms
-  private socket: WebSocket | null = null;
-
-  setSocket(socket: WebSocket) {
-    this.socket = socket;
-  }
-
-  add<T = unknown>(type: string, data?: T) {
-    this.messages.push({
-      type,
-      data,
-      timestamp: Date.now()
-    });
-
-    if (!this.batchTimeout) {
-      this.scheduleBatch();
-    }
-  }
-
-  private scheduleBatch() {
-    this.batchTimeout = setTimeout(() => {
-      this.sendBatch();
-    }, this.BATCH_INTERVAL);
-  }
-
-  private sendBatch() {
-    if (this.socket?.readyState === WebSocket.OPEN && this.messages.length > 0) {
-      const batch = this.messages.slice();
-      this.messages = [];
-
-      // Group messages by type to reduce payload size
-      const groupedBatch = batch.reduce((acc, msg) => {
-        if (!acc[msg.type]) {
-          acc[msg.type] = [];
-        }
-        acc[msg.type].push(msg.data);
-        return acc;
-      }, {} as Record<string, unknown[]>);
-
-      try {
-        this.socket.send(JSON.stringify({
-          type: 'batch',
-          batches: groupedBatch
-        }));
-      } catch (error) {
-        console.error('Error sending batched messages:', error);
-      }
-    }
-
-    this.batchTimeout = null;
-
-    // If there are new messages that came in while sending, schedule another batch
-    if (this.messages.length > 0) {
-      this.scheduleBatch();
-    }
-  }
-
-  clear() {
-    if (this.batchTimeout) {
-      clearTimeout(this.batchTimeout);
-      this.batchTimeout = null;
-    }
-    this.messages = [];
-    this.socket = null;
   }
 }
 

@@ -9,7 +9,7 @@ import { WebSocketProvider, useWebSocket } from './contexts/WebSocketContext';
 import { CheckInProvider } from './contexts/CheckInContext';
 import { AuthProvider, UserRole, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
-import { WebSocketErrorBoundary } from './components/common/WebSocketErrorBoundary';
+import WebSocketErrorBoundary from './components/common/WebSocketErrorBoundary';
 import WebSocketConnectionModal from './components/common/WebSocketConnectionModal';
 import SecurityHeadersProvider from './components/common/SecurityHeadersProvider';
 import { Dashboard } from './components/Dashboard';

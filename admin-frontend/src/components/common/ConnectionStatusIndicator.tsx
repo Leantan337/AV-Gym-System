@@ -1,135 +1,175 @@
-import React from 'react';
-import { 
-  Chip, 
-  Button, 
-  Tooltip, 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions,
-  Typography,
-  CircularProgress
-} from '@mui/material';
+import React, { useState } from 'react';
+import { Alert, AlertTitle, Collapse, IconButton, Typography, Box, Chip } from '@mui/material';
+import { ExpandMore, ExpandLess, Wifi, WifiOff, Warning, Refresh } from '@mui/icons-material';
 import { useWebSocket } from '../../contexts/WebSocketContext';
-import WifiIcon from '@mui/icons-material/Wifi';
-import WifiOffIcon from '@mui/icons-material/WifiOff';
-import SyncIcon from '@mui/icons-material/Sync';
-import ErrorIcon from '@mui/icons-material/Error';
+import { WebSocketErrorType } from '../../services/websocket';
 
-export const ConnectionStatusIndicator: React.FC = () => {
-  const { connectionStatus, reconnect } = useWebSocket();
-  const [openDialog, setOpenDialog] = React.useState(false);
-  const [isReconnecting, setIsReconnecting] = React.useState(false);
+const ConnectionStatusIndicator: React.FC = () => {
+  const { connectionStatus, lastError, isFallbackMode, reconnect } = useWebSocket();
+  const [expanded, setExpanded] = useState(false);
 
-  // Status configuration for each connection state
-  const statusConfig = {
-    connected: {
-      label: 'Connected',
-      color: 'success' as const,
-      icon: <WifiIcon fontSize="small" />,
-      tooltip: 'WebSocket connection is established and working properly'
-    },
-    connecting: {
-      label: 'Connecting',
-      color: 'warning' as const,
-      icon: <CircularProgress size={16} />,
-      tooltip: 'Attempting to establish a WebSocket connection'
-    },
-    disconnected: {
-      label: 'Disconnected',
-      color: 'error' as const,
-      icon: <WifiOffIcon fontSize="small" />,
-      tooltip: 'WebSocket connection is lost. Click to reconnect'
-    },
-    authentication_failed: {
-      label: 'Auth Failed',
-      color: 'error' as const,
-      icon: <ErrorIcon fontSize="small" />,
-      tooltip: 'WebSocket authentication failed. Click for details'
-    },
-    failed: {
-      label: 'Connection Failed',
-      color: 'error' as const,
-      icon: <ErrorIcon fontSize="small" />,
-      tooltip: 'WebSocket connection failed after multiple attempts. Click to reconnect'
+  // Don't show indicator when connected and no errors
+  if (connectionStatus === 'connected' && !lastError && !isFallbackMode) {
+    return null;
+  }
+
+  const getStatusInfo = () => {
+    if (connectionStatus === 'authentication_failed') {
+      return {
+        severity: 'error' as const,
+        icon: <WifiOff />,
+        title: 'Authentication Failed',
+        message: 'Please refresh the page to re-authenticate',
+        showRetry: false,
+      };
+    }
+
+    if (connectionStatus === 'failed') {
+      return {
+        severity: 'error' as const,
+        icon: <WifiOff />,
+        title: 'Connection Failed',
+        message: 'Unable to connect to the server',
+        showRetry: true,
+      };
+    }
+
+    if (isFallbackMode) {
+      return {
+        severity: 'warning' as const,
+        icon: <Warning />,
+        title: 'Using Backup Mode',
+        message: 'Real-time updates are limited. Data refreshes every 10 seconds.',
+        showRetry: true,
+      };
+    }
+
+    if (connectionStatus === 'connecting') {
+      return {
+        severity: 'info' as const,
+        icon: <Wifi />,
+        title: 'Connecting...',
+        message: 'Establishing connection to the server',
+        showRetry: false,
+      };
+    }
+
+    if (connectionStatus === 'disconnected' && lastError) {
+      return {
+        severity: 'warning' as const,
+        icon: <WifiOff />,
+        title: 'Connection Lost',
+        message: 'Attempting to reconnect...',
+        showRetry: true,
+      };
+    }
+
+    return null;
+  };
+
+  const statusInfo = getStatusInfo();
+  if (!statusInfo) return null;
+
+  const formatErrorType = (type: WebSocketErrorType): string => {
+    switch (type) {
+      case WebSocketErrorType.AUTHENTICATION_ERROR:
+        return 'Authentication';
+      case WebSocketErrorType.NETWORK_ERROR:
+        return 'Network';
+      case WebSocketErrorType.SERVER_ERROR:
+        return 'Server';
+      case WebSocketErrorType.CONNECTION_TIMEOUT:
+        return 'Timeout';
+      case WebSocketErrorType.HEARTBEAT_TIMEOUT:
+        return 'Connection Lost';
+      case WebSocketErrorType.MESSAGE_ERROR:
+        return 'Message';
+      default:
+        return 'Unknown';
     }
   };
 
-  const currentStatus = statusConfig[connectionStatus];
-
-  const handleClick = () => {
-    if (connectionStatus === 'disconnected' || connectionStatus === 'authentication_failed') {
-      setOpenDialog(true);
-    }
-  };
-
-  const handleReconnect = () => {
-    setIsReconnecting(true);
-    reconnect();
-    
-    // Add a delay before closing the dialog to give feedback to the user
-    setTimeout(() => {
-      setIsReconnecting(false);
-      setOpenDialog(false);
-    }, 1000);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
+  const getRetryLabel = (): string => {
+    if (isFallbackMode) return 'Try Real-time';
+    if (connectionStatus === 'failed') return 'Retry Connection';
+    return 'Reconnect';
   };
 
   return (
-    <>
-      <Tooltip title={currentStatus.tooltip}>
-        <Chip
-          icon={currentStatus.icon}
-          label={currentStatus.label}
-          color={currentStatus.color}
-          size="small"
-          onClick={handleClick}
-          sx={{ 
-            cursor: connectionStatus === 'disconnected' || connectionStatus === 'authentication_failed' 
-              ? 'pointer' 
-              : 'default',
-            '& .MuiChip-label': {
-              px: 1
-            }
-          }}
-        />
-      </Tooltip>
+    <Alert 
+      severity={statusInfo.severity}
+      icon={statusInfo.icon}
+      sx={{ mb: 2 }}
+      action={
+        <Box display="flex" alignItems="center" gap={1}>
+          {statusInfo.showRetry && (
+            <IconButton
+              size="small"
+              onClick={reconnect}
+              color="inherit"
+              title={getRetryLabel()}
+            >
+              <Refresh />
+            </IconButton>
+          )}
+          <IconButton
+            size="small"
+            onClick={() => setExpanded(!expanded)}
+            color="inherit"
+          >
+            {expanded ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
+        </Box>
+      }
+    >
+      <AlertTitle>{statusInfo.title}</AlertTitle>
+      <Typography variant="body2">{statusInfo.message}</Typography>
+      
+      {isFallbackMode && (
+        <Box mt={1}>
+          <Chip 
+            label="Backup Mode" 
+            size="small" 
+            color="warning" 
+            variant="outlined"
+          />
+        </Box>
+      )}
 
-      <Dialog open={openDialog} onClose={handleCloseDialog}>
-        <DialogTitle>
-          {connectionStatus === 'authentication_failed' 
-            ? 'Authentication Failed' 
-            : 'Connection Lost'}
-        </DialogTitle>
-        <DialogContent>
-          {connectionStatus === 'authentication_failed' ? (
-            <Typography>
-              The WebSocket connection failed due to an authentication error. This may be due to 
-              an expired session. Try logging out and logging back in.
-            </Typography>
-          ) : (
-            <Typography>
-              The real-time connection to the server has been lost. This may cause delays in 
-              updates to check-ins and other real-time features.
+      <Collapse in={expanded}>
+        <Box mt={2}>
+          <Typography variant="body2" color="text.secondary">
+            <strong>Connection Status:</strong> {connectionStatus}
+          </Typography>
+          
+          {lastError && (
+            <>
+              <Typography variant="body2" color="text.secondary" mt={1}>
+                <strong>Error Type:</strong> {formatErrorType(lastError.type)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Error Message:</strong> {lastError.message}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Time:</strong> {new Date(lastError.timestamp).toLocaleTimeString()}
+              </Typography>
+              {lastError.retryable !== undefined && (
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Retryable:</strong> {lastError.retryable ? 'Yes' : 'No'}
+                </Typography>
+              )}
+            </>
+          )}
+
+          {isFallbackMode && (
+            <Typography variant="body2" color="text.secondary" mt={1}>
+              <strong>Fallback Mode:</strong> Polling for updates every 10 seconds
             </Typography>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button 
-            onClick={handleReconnect} 
-            variant="contained" 
-            color="primary"
-            disabled={isReconnecting}
-            startIcon={isReconnecting ? <CircularProgress size={16} /> : <SyncIcon />}
-          >
-            {isReconnecting ? 'Reconnecting...' : 'Reconnect Now'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
+        </Box>
+      </Collapse>
+    </Alert>
   );
 };
+
+export default ConnectionStatusIndicator;

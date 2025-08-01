@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import wsService, { ConnectionStatus, CheckInEvent } from '../services/websocket';
+import wsService, { ConnectionStatus, CheckInEvent, WebSocketError } from '../services/websocket';
 
 interface CheckInStats {
   currentlyIn: number;
@@ -20,6 +20,8 @@ interface WebSocketContextType {
   ) => () => void;
   reconnect: () => void;
   setAuthToken: (token: string | null) => void;
+  lastError: WebSocketError | null;
+  isFallbackMode: boolean;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -31,6 +33,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [initialStats, setInitialStats] = useState<CheckInStats | null>(null);
+  const [lastError, setLastError] = useState<WebSocketError | null>(null);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   // Initialize WebSocket connection only once
   useEffect(() => {
@@ -63,19 +67,45 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
       }
     );
 
-    // Subscribe to check-in events
+    // Subscribe to check-in events - we'll use member_checked_in for latest check-in tracking
     const unsubscribeCheckIn = wsService.subscribe<CheckInEvent>(
-      'check_in_update',
+      'member_checked_in',
       (event) => {
         setLatestCheckIn(event);
       }
     );
+
+    // Subscribe to WebSocket errors
+    const unsubscribeError = wsService.subscribe<WebSocketError>(
+      'websocket_error',
+      (error) => {
+        console.log('WebSocket error received:', error);
+        setLastError(error);
+      }
+    );
+
+    // Subscribe to fallback mode notifications
+    const unsubscribeFallback = wsService.subscribe<{ mode: string; interval: number }>(
+      'fallback_polling',
+      (data) => {
+        console.log('WebSocket fallback mode activated:', data);
+        setIsFallbackMode(true);
+      }
+    );
+
+    // Check fallback mode status periodically
+    const fallbackCheckInterval = setInterval(() => {
+      setIsFallbackMode(wsService.isFallbackMode());
+    }, 5000);
 
     // Cleanup on unmount
     return () => {
       unsubscribeStatus();
       unsubscribeInitialStats();
       unsubscribeCheckIn();
+      unsubscribeError();
+      unsubscribeFallback();
+      clearInterval(fallbackCheckInterval);
       // Don't disconnect on unmount, let the service handle reconnection
     };
   }, [isInitialized]);
@@ -88,10 +118,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     if (currentToken !== authToken) {
       console.log('Auth token changed, updating WebSocket connection');
       wsService.setAuthToken(authToken);
-      // Only reconnect if we have a new token
-      if (authToken) {
-        wsService.connect(false, false);
-      }
+      // Always reconnect when token changes (including when token is removed)
+      wsService.connect(false, false);
     }
   }, [authToken, isInitialized]);
 
@@ -126,6 +154,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
         subscribe,
         reconnect,
         setAuthToken: updateAuthToken,
+        lastError,
+        isFallbackMode,
       }}
     >
       {children}

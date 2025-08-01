@@ -11,7 +11,7 @@ import {
 import ExpiringMemberships from './notifications/ExpiringMemberships';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { CheckInEvent } from '../services/websocket';
-import { ConnectionStatusIndicator } from './common/ConnectionStatusIndicator';
+import ConnectionStatusIndicator from './common/ConnectionStatusIndicator';
 import PeopleIcon from '@mui/icons-material/People';
 
 interface DashboardStats {
@@ -57,26 +57,50 @@ export const Dashboard: React.FC = () => {
 
   // Subscribe to real-time check-in updates
   useEffect(() => {
-    const unsubscribe = subscribe<CheckInEvent>('check_in_update', (checkInEvent) => {
-      // Update recent check-ins list
-      setRecentCheckIns(prev => {
-        const updatedList = [checkInEvent, ...prev.slice(0, 4)];
-        return updatedList;
-      });
+    // Subscribe to member check-in events
+    const unsubscribeCheckIn = subscribe('member_checked_in', (checkInData: CheckInEvent) => {
+      const checkInEvent: CheckInEvent = {
+        id: checkInData.id,
+        member: checkInData.member,
+        check_in_time: checkInData.check_in_time,
+        check_out_time: null,
+        status: 'checked_in'
+      };
       
-      // Show notification
-      const action = checkInEvent.status === 'checked_in' ? 'checked in' : 'checked out';
+      setRecentCheckIns(prev => [checkInEvent, ...prev.slice(0, 4)]);
       setNotification({
         open: true,
-        message: `${checkInEvent.member.full_name} has ${action}`,
+        message: `${checkInData.member.full_name} has checked in`,
         type: 'info'
       });
       
-      // Invalidate dashboard stats to get updated counts
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    });
+
+    // Subscribe to member check-out events
+    const unsubscribeCheckOut = subscribe('member_checked_out', (checkOutData: CheckInEvent) => {
+      const checkOutEvent: CheckInEvent = {
+        id: checkOutData.id,
+        member: checkOutData.member,
+        check_in_time: checkOutData.check_in_time,
+        check_out_time: checkOutData.check_out_time,
+        status: 'checked_out'
+      };
+      
+      setRecentCheckIns(prev => [checkOutEvent, ...prev.slice(0, 4)]);
+      setNotification({
+        open: true,
+        message: `${checkOutData.member.full_name} has checked out`,
+        type: 'info'
+      });
+      
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     });
     
-    return () => unsubscribe();
+    return () => {
+      unsubscribeCheckIn();
+      unsubscribeCheckOut();
+    };
   }, [subscribe, queryClient]);
   
   const handleCloseNotification = () => {

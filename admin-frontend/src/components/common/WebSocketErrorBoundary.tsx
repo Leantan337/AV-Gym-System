@@ -1,100 +1,103 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Alert, Button, Typography } from '@mui/material';
-import { useWebSocket } from '../../contexts/WebSocketContext';
+import React, { Component, ReactNode } from 'react';
+import { Alert, AlertTitle, Button, Box, Typography } from '@mui/material';
+import { Refresh, WifiOff } from '@mui/icons-material';
 
-interface WebSocketErrorBoundaryProps {
+interface Props {
   children: ReactNode;
   fallback?: ReactNode;
 }
 
-interface WebSocketErrorBoundaryState {
+interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: string | null;
 }
 
-// Helper component to access context hooks inside class component
-const WebSocketErrorBoundaryWithHooks: React.FC<WebSocketErrorBoundaryProps> = (props) => {
-  const { reconnect } = useWebSocket();
-  
-  return (
-    <WebSocketErrorBoundaryClass
-      {...props}
-      reconnect={reconnect}
-    />
-  );
-};
-
-class WebSocketErrorBoundaryClass extends Component<
-  WebSocketErrorBoundaryProps & { reconnect: () => void },
-  WebSocketErrorBoundaryState
-> {
-  constructor(props: WebSocketErrorBoundaryProps & { reconnect: () => void }) {
+class WebSocketErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
-  static getDerivedStateFromError(error: Error): WebSocketErrorBoundaryState {
-    // Update state so the next render will show the fallback UI
+  static getDerivedStateFromError(error: Error): State {
     return {
       hasError: true,
-      error
+      error,
+      errorInfo: error.stack || null,
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // Log the error to an error reporting service
-    console.error('WebSocket component error:', error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('WebSocket Error Boundary caught an error:', error, errorInfo);
+    
+    // Log to external error reporting service if available
+    if (process.env.NODE_ENV === 'production') {
+      // Example: logErrorToService(error, errorInfo);
+    }
   }
 
-  handleRetry = (): void => {
-    // Try to reconnect WebSocket
-    this.props.reconnect();
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
     
-    // Reset the error state
-    this.setState({
-      hasError: false,
-      error: null
-    });
+    // Force a page reload as last resort
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   };
 
-  render(): ReactNode {
+  render() {
     if (this.state.hasError) {
-      // Custom fallback UI
       if (this.props.fallback) {
         return this.props.fallback;
       }
-      
-      // Default fallback UI
+
       return (
-        <Box 
-          sx={{
-            p: 3,
-            border: '1px solid #f0f0f0',
-            borderRadius: 1,
-            backgroundColor: '#fafafa'
-          }}
-        >
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="h6">
-              Real-time connection error
+        <Box p={2}>
+          <Alert 
+            severity="error" 
+            icon={<WifiOff />}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={this.handleRetry}
+                startIcon={<Refresh />}
+              >
+                Reload Page
+              </Button>
+            }
+          >
+            <AlertTitle>Connection Error</AlertTitle>
+            <Typography variant="body2" gutterBottom>
+              Something went wrong with the real-time connection. This usually resolves itself with a page refresh.
             </Typography>
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              {this.state.error?.message || 'An unexpected error occurred in the real-time connection component.'}
-            </Typography>
+            
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <Box mt={2}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Error:</strong> {this.state.error.message}
+                </Typography>
+                {this.state.errorInfo && (
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary" 
+                    component="pre"
+                    sx={{ 
+                      fontSize: '0.75rem',
+                      overflow: 'auto',
+                      maxHeight: '200px',
+                      mt: 1,
+                      p: 1,
+                      backgroundColor: 'rgba(0,0,0,0.1)',
+                      borderRadius: 1,
+                    }}
+                  >
+                    {this.state.errorInfo}
+                  </Typography>
+                )}
+              </Box>
+            )}
           </Alert>
-          
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={this.handleRetry}
-            >
-              Reconnect
-            </Button>
-          </Box>
         </Box>
       );
     }
@@ -103,5 +106,4 @@ class WebSocketErrorBoundaryClass extends Component<
   }
 }
 
-// Export the component with hooks
-export const WebSocketErrorBoundary = WebSocketErrorBoundaryWithHooks;
+export default WebSocketErrorBoundary;
