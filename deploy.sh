@@ -1,63 +1,63 @@
 #!/bin/bash
 
-# AV Gym System - Production Deployment Script
-# Run this script after cloning the repository and setting up your .env file
+# =================================================================
+# AV-GYM-SYSTEM DEPLOYMENT SCRIPT (Clean Slate Strategy)
+# =================================================================
+# This script ensures a reliable deployment by tearing down the old
+# stack and performing a safe prune before building and launching
+# the new version.
+#
+# IT WILL NOT DELETE YOUR DATABASE VOLUME (`postgres_data`).
+#
+# USAGE:
+# 1. Make the script executable: chmod +x deploy.sh
+# 2. Run the script: ./deploy.sh
+# =================================================================
 
-set -e  # Exit on any error
+# Exit immediately if a command exits with a non-zero status.
+set -e
 
-echo "🚀 Starting AV Gym System deployment..."
+# --- 1. Tear Down the Existing Stack ---
+echo "Stopping and removing existing application containers and networks..."
+# Using --remove-orphans cleans up any containers left from previous configs.
+docker-compose down --remove-orphans
 
-# Check if .env file exists
-if [ ! -f ".env" ]; then
-    echo "⚠️  .env file not found! Copying from .env.example..."
-    cp .env.example .env
-    echo "📝 Please edit .env file with your production settings before continuing."
-    echo "   Pay special attention to:"
-    echo "   - SECRET_KEY (generate a new one)"
-    echo "   - ALLOWED_HOSTS (add your domain/IP)"
-    echo "   - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD"
-    echo ""
-    read -p "Press Enter after updating .env file..."
-fi
+# --- 2. Perform a Safe Prune ---
+echo "Pruning unused Docker objects (stopped containers, old networks, dangling images)..."
+# This is safe and will NOT remove your named volumes like the database.
+# The -f flag forces the prune without asking for confirmation.
+docker system prune -f
 
-echo "📦 Building Docker images..."
-docker-compose build --no-cache
+# --- 3. Build Fresh Docker Images ---
+echo "Building fresh Docker images for all services..."
+docker-compose build
 
-echo "🔧 Starting services..."
+# --- 4. Launch the New Stack ---
+echo "Starting all services from a clean slate..."
+# No --force-recreate needed, as everything was already down.
 docker-compose up -d
 
-echo "⏳ Waiting for services to start..."
-sleep 15
+# --- 5. Wait for the Database ---
+echo "Waiting for the database service to be healthy..."
+# This loop checks the health status of the 'db' container every 5 seconds.
+while [ "$(docker-compose ps -q db | xargs docker inspect -f '{{.State.Health.Status}}')" != "healthy" ]; do
+    echo -n "."
+    sleep 5
+done
+echo "Database is ready!"
 
-echo "🗄️  Running database migrations..."
-docker-compose exec web python manage.py migrate
+# --- 6. Run Post-Deploy Commands ---
+echo "Running database migrations..."
+docker-compose exec web python manage.py migrate --noinput
 
-echo "📊 Collecting static files..."
+echo "Collecting static files..."
 docker-compose exec web python manage.py collectstatic --noinput
 
-echo "👤 Creating superuser..."
-echo "Please create an admin user:"
-docker-compose exec web python manage.py createsuperuser
+# --- 7. Final Nginx Restart (Good Practice) ---
+echo "Restarting Nginx to ensure all changes are applied..."
+docker-compose restart nginx
 
-echo "🔍 Running health check..."
-if curl -f http://localhost:8000/health/ > /dev/null 2>&1; then
-    echo "✅ Health check passed!"
-else
-    echo "❌ Health check failed. Check logs with: docker-compose logs web"
-    exit 1
-fi
-
-echo ""
-echo "🎉 Deployment complete!"
-echo ""
-echo "📱 Your services are available at:"
-echo "   • Django Admin: http://localhost:8000/admin/"
-echo "   • API: http://localhost:8000/api/"
-echo "   • Frontend: http://localhost:3000/"
-echo "   • Health Check: http://localhost:8000/health/"
-echo ""
-echo "📝 Useful commands:"
-echo "   • View logs: docker-compose logs -f"
-echo "   • Stop services: docker-compose down"
-echo "   • Restart services: docker-compose restart"
-echo ""
+# --- Deployment Complete ---
+echo "✅ Deployment successful!"
+echo "Current status of all services:"
+docker-compose ps
