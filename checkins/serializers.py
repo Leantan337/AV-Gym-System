@@ -4,14 +4,16 @@ from .models import CheckIn
 
 class CheckInSerializer(serializers.ModelSerializer):
     member = serializers.SerializerMethodField()
+    checkInTime = serializers.DateTimeField(source='check_in_time', read_only=True)
+    checkOutTime = serializers.DateTimeField(source='check_out_time', read_only=True)
 
     class Meta:
         model = CheckIn
         fields = [
             'id',
             'member',
-            'check_in_time',
-            'check_out_time',
+            'checkInTime',
+            'checkOutTime',
             'location',
             'notes',
         ]
@@ -19,6 +21,6 @@ class CheckInSerializer(serializers.ModelSerializer):
     def get_member(self, obj):
         return {
             'id': str(obj.member.id),
-            'full_name': obj.member.full_name,
+            'fullName': obj.member.full_name,
             'membership_type': getattr(obj.member, 'membership_type', ''),
         }

@@ -242,7 +242,7 @@ export const adminApi = {
     if (filters.page !== undefined) params.append('page', filters.page.toString());
     if (filters.perPage) params.append('perPage', filters.perPage.toString());
 
-    const response = await api.get<CheckInResponse>(`/check-ins/?${params.toString()}`);
+    const response = await api.get<CheckInResponse>(`/checkins/?${params.toString()}`);
     return response.data;
   },
 
@@ -264,12 +264,17 @@ export const adminApi = {
     if (filters.page !== undefined) params.append('page', filters.page.toString());
     if (filters.perPage) params.append('perPage', filters.perPage.toString());
 
-    const response = await api.get<CheckInResponse>(`/check-ins/history/?${params.toString()}`);
-    return response.data;
+    const response = await api.get(`/checkins/history/?${params.toString()}`);
+    
+    // Transform the backend response to match frontend expectations
+    return {
+      checkIns: response.data.results || [],
+      totalCount: response.data.total || 0,
+    };
   },
 
   checkOutMember: async ({ checkInId }: { checkInId: string }) => {
-    const response = await api.post(`/check-ins/${checkInId}/check-out`);
+    const response = await api.post(`/checkins/${checkInId}/checkout/`);
     return response.data;
   },
 

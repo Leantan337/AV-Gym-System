@@ -283,7 +283,7 @@ CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
 CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
 CSP_IMG_SRC = ("'self'", "data:", "blob:")
-CSP_CONNECT_SRC = ("'self'", "http://46.101.193.107:8000", "ws://46.101.193.107:8000")
+CSP_CONNECT_SRC = ("'self'", "http://46.101.193.107:8000", "https://46.101.193.107:8000", "ws://46.101.193.107:8000", "wss://46.101.193.107:8000")
 
 # --- Email Configuration ---
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend')
